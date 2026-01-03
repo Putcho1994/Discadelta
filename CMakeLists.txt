@@ -46,7 +46,7 @@ install(EXPORT DiscadeltaTargets
 # Optional: Install docs only if enabled
 if(DISCADELTA_DOCS)
     install(DIRECTORY docs/
-            DESTINATION ${CMAKE_INSTALL_DOCDIR}
+            DESTINATION ${CMAKE_INSTALL_DOCSDIR}
             OPTIONAL
     )
 endif()
