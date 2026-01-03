@@ -16,7 +16,7 @@ target_sources(discadelta_core
 
 # Option to build samples (default ON)
 option(DISCADELTA_SAMPLES "Build sample executables" ON)
-option(DISCADELTA_DOCS   "Install documentation (docs/ folder)" OFF)
+option(DISCADELTA_DOCS "Install documentation (docs/ folder)" OFF)
 
 if(DISCADELTA_SAMPLES)
     message(STATUS "Building Discadelta samples")
@@ -44,7 +44,7 @@ install(EXPORT DiscadeltaTargets
 )
 
 # Optional: Install docs only if enabled
-if(DISCADELTA_INSTALL_DOCS)
+if(DISCADELTA_DOCS)
     install(DIRECTORY docs/
             DESTINATION ${CMAKE_INSTALL_DOCDIR}
             OPTIONAL
