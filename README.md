@@ -39,7 +39,7 @@ Discadelta doesn't just "calculate and draw." It uses a strictly decoupled 3-pas
 ## Integration with CPM (CMake Package Manager)
 Add to your CMakeLists.txt:
 ```cmake
-CPMAddPackage(NAME Discadelta GITHUB_REPOSITORY Putcho1994/Discadelta GIT_TAG v1.0.1 OPTIONS "DISCADELTA_BUILD_SAMPLES OFF")
+CPMAddPackage(NAME Discadelta GITHUB_REPOSITORY Putcho1994/Discadelta GIT_TAG v1.0.1 OPTIONS "DISCADELTA_SAMPLES OFF")
 
 add_library(Discadelta-module)
 target_sources(Discadelta-module
@@ -49,7 +49,7 @@ target_sources(Discadelta-module
         FILES ${Discadelta_SOURCE_DIR}/core/ufox_discadelta_lib.cppm ${Discadelta_SOURCE_DIR}/core/ufox_discadelta_core.cppm
 )
 
-target_link_libraries(your_target PRIVATE iscadelta-module)
+target_link_libraries(your_target PRIVATE Discadelta-module)
 ```
 
 ## Usage as Library & API (C++23 Modules)

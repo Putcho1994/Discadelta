@@ -16,9 +16,9 @@ target_sources(discadelta_core
 )
 
 # Option to build samples (default ON)
-option(DISCADelta_BUILD_SAMPLES "Build sample executables" ON)
+option(DISCADELTA_SAMPLES "Build sample executables" ON)
 
-if(DISCADelta_BUILD_SAMPLES)
+if(DISCADELTA_SAMPLES)
     message(STATUS "Building Discadelta samples")
     add_executable(ch01_basic       samples/chapter_01_sample.cpp)
     add_executable(ch02_constraints samples/chapter_02_sample.cpp)
