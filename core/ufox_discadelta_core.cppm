@@ -4,9 +4,13 @@
 module;
 
 #include <algorithm>
+#include <string>
 #include <limits>
 #include <memory>
 #include <vector>
+#include <ranges>
+#include <format>
+#include <iomanip>     // if needed
 
 export module ufox_discadelta_core;
 
