@@ -5,12 +5,6 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-if(APPLE)
-    # AppleClang does not yet support full module dependency scanning in CMake
-    set(CMAKE_CXX_SCAN_FOR_MODULES OFF CACHE BOOL "" FORCE)
-    message(STATUS "Apple platform detected – disabling CMAKE_CXX_SCAN_FOR_MODULES")
-endif()
-
 # Core library (interface for modules)
 add_library(discadelta_core OBJECT)
 target_sources(discadelta_core
