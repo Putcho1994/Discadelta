@@ -16,7 +16,6 @@ export module ufox_discadelta_core;
 
 import ufox_discadelta_lib;
 
-
 export namespace ufox::geometry::discadelta {
     /**
      * A constexpr lambda function that generates and initializes the context for Discadelta processing.
@@ -38,14 +37,14 @@ export namespace ufox::geometry::discadelta {
      * the provided configuration. It calculates various pre-computation metrics, such as
      * compression capacity, base values, expand ratios, and priority indices for all segments.
      */
-    constexpr auto MakeContext = [](const std::vector<DiscadeltaSegmentConfig>& configs, const float inputDistance) -> std::tuple<DiscadeltaSegmentsHandler, DiscadeltaPreComputeMetrics, bool>{
+    constexpr auto MakeContext = [](const std::vector<SegmentConfig>& configs, const float inputDistance) -> std::tuple<SegmentsPtrHandler, PreComputeMetrics, bool>{
         const float validatedInputDistance = std::max(0.0f, inputDistance);
         const size_t segmentCount = configs.size();
 
-        DiscadeltaSegmentsHandler segments;
+        SegmentsPtrHandler segments;
         segments.reserve(segmentCount);
 
-        DiscadeltaPreComputeMetrics preComputeMetrics(segmentCount, validatedInputDistance);
+        PreComputeMetrics preComputeMetrics(segmentCount, validatedInputDistance);
 
         float compressPriorityLowestValue = std::numeric_limits<float>::max();
         float expandPriorityLowestValue{0.0f};
@@ -74,7 +73,7 @@ export namespace ufox::geometry::discadelta {
             preComputeMetrics.accumulateCompressSolidify += compressSolidify;
             preComputeMetrics.accumulateExpandRatio += expandRatio;
 
-            auto seg = std::make_unique<DiscadeltaSegment>();
+            auto seg = std::make_unique<Segment>();
             seg->name = name;
             seg->order = rawOrder;
             seg->base = baseVal;
@@ -140,14 +139,14 @@ export namespace ufox::geometry::discadelta {
      * constraints such as the minimum allowed distances, and updates cascading parameters
      * post-segment adjustment to maintain consistency across subsequent computations.
      */
-    void Compressing(const DiscadeltaPreComputeMetrics& preComputeMetrics) {
+    void Compressing(const PreComputeMetrics& preComputeMetrics) {
         float cascadeCompressDistance = preComputeMetrics.inputDistance;
         float cascadeBaseDistance = preComputeMetrics.accumulateBaseDistance;
         float cascadeCompressSolidify = preComputeMetrics.accumulateCompressSolidify;
 
         for (size_t i = 0; i < preComputeMetrics.segments.size(); ++i) {
             const size_t index = preComputeMetrics.compressPriorityIndies[i];
-            DiscadeltaSegment* seg = preComputeMetrics.segments[index];
+            Segment* seg = preComputeMetrics.segments[index];
             if (seg == nullptr) break;
 
             const float remainDist = cascadeCompressDistance - cascadeCompressSolidify;
@@ -188,7 +187,7 @@ export namespace ufox::geometry::discadelta {
      * If the expandable delta (`cascadeExpandDelta`) is initially non-positive, the function exits
      * early without applying any changes.
      */
-    void Expanding(const DiscadeltaPreComputeMetrics& preComputeMetrics) {
+    void Expanding(const PreComputeMetrics& preComputeMetrics) {
         float cascadeExpandDelta = std::max(preComputeMetrics.inputDistance - preComputeMetrics.accumulateBaseDistance, 0.0f);
         float cascadeExpandRatio = preComputeMetrics.accumulateExpandRatio;
 
@@ -196,7 +195,7 @@ export namespace ufox::geometry::discadelta {
 
         for (size_t i = 0; i < preComputeMetrics.segments.size(); ++i) {
             const size_t index = preComputeMetrics.expandPriorityIndies[i];
-            DiscadeltaSegment* seg = preComputeMetrics.segments[index];
+            Segment* seg = preComputeMetrics.segments[index];
             const float& base = preComputeMetrics.baseDistances[index];
             const float& ratio = preComputeMetrics.expandRatios[index];
 
@@ -225,7 +224,7 @@ export namespace ufox::geometry::discadelta {
      * iteratively accumulating their distances to determine the next offset.
      * Null pointers within the segments are safely skipped during processing.
      */
-    constexpr void Placing(DiscadeltaPreComputeMetrics& preComputeMetrics) {
+    constexpr void Placing(PreComputeMetrics& preComputeMetrics) {
         std::ranges::sort(preComputeMetrics.segments, [](const auto& a, const auto& b) {
             return a->order < b->order;
         });
@@ -252,7 +251,7 @@ export namespace ufox::geometry::discadelta {
      * The function searches for a segment by its name within the preComputeMetrics. If the
      * specified segment is found, its order is updated to the provided value.
      */
-    constexpr void SetSegmentOrder(DiscadeltaPreComputeMetrics& preComputeMetrics, std::string_view name, const size_t order) {
+    constexpr void SetSegmentOrder(PreComputeMetrics& preComputeMetrics, std::string_view name, const size_t order) {
         const auto it = std::ranges::find_if(
             preComputeMetrics.segments, [&](const auto& seg) { return seg->name == name; });
         if (it != preComputeMetrics.segments.end()) (*it)->order = order;

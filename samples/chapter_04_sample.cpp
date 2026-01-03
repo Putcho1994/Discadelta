@@ -6,7 +6,7 @@
 import ufox_discadelta_lib;
 import ufox_discadelta_core;
 
-void Debugger(const ufox::geometry::discadelta::DiscadeltaSegmentsHandler& segmentDistances, const ufox::geometry::discadelta::DiscadeltaPreComputeMetrics &preComputeMetrics) {
+void Debugger(const ufox::geometry::discadelta::SegmentsPtrHandler& segmentDistances, const ufox::geometry::discadelta::PreComputeMetrics &preComputeMetrics) {
     std::cout <<"=== Discadelta Layout: Metrics & Final Distribution ===" << std::endl;
     std::cout << std::format("Input distance: {}", preComputeMetrics.inputDistance)<< std::endl;
 
@@ -64,7 +64,7 @@ void Debugger(const ufox::geometry::discadelta::DiscadeltaSegmentsHandler& segme
 
 int main() {
 
-    std::vector<ufox::geometry::discadelta::DiscadeltaSegmentConfig> segmentConfigs{
+    std::vector<ufox::geometry::discadelta::SegmentConfig> segmentConfigs{
               {"Segment_1", 200.0f, 0.7f, 0.1f, 0.0f, 100.0f, 2},
               {"Segment_2", 200.0f, 1.0f, 1.0f, 300.0f, 800.0f, 1},
               {"Segment_3", 150.0f, 0.0f, 2.0f, 0.0f, 200.0f, 3},

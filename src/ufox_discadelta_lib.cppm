@@ -5,13 +5,14 @@ module;
 
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 export module ufox_discadelta_lib;
 
 
 export namespace ufox::geometry::discadelta {
-    struct DiscadeltaSegment {
+    struct Segment {
         std::string name{"none"};
         float base{0.0f};
         float expandDelta{0.0f};
@@ -20,7 +21,7 @@ export namespace ufox::geometry::discadelta {
         size_t order;
     };
 
-    struct DiscadeltaSegmentConfig {
+    struct SegmentConfig {
         std::string name{"none"};
         float base{0.0f};
         float compressRatio{0.0f};
@@ -30,7 +31,7 @@ export namespace ufox::geometry::discadelta {
         size_t order;
     };
 
-    struct DiscadeltaPreComputeMetrics {
+    struct PreComputeMetrics {
         float inputDistance{};
         std::vector<float> compressCapacities{};
         std::vector<float> compressSolidifies{};
@@ -44,15 +45,15 @@ export namespace ufox::geometry::discadelta {
         float accumulateExpandRatio{0.0f};
 
         // NEW: Non-owning pointers — safe because ownedSegments outlives metrics
-        std::vector<DiscadeltaSegment*> segments;
+        std::vector<Segment*> segments;
 
         std::vector<size_t> compressPriorityIndies;
         std::vector<size_t> expandPriorityIndies;
 
-        DiscadeltaPreComputeMetrics() = default;
-        ~DiscadeltaPreComputeMetrics() = default;
+        PreComputeMetrics() = default;
+        ~PreComputeMetrics() = default;
 
-        explicit DiscadeltaPreComputeMetrics(const size_t segmentCount, const float& rootBase) : inputDistance(rootBase) {
+        explicit PreComputeMetrics(const size_t segmentCount, const float& rootBase) : inputDistance(rootBase) {
             compressCapacities.reserve(segmentCount);
             compressSolidifies.reserve(segmentCount);
             baseDistances.reserve(segmentCount);
@@ -66,5 +67,5 @@ export namespace ufox::geometry::discadelta {
         }
     };
 
-    using DiscadeltaSegmentsHandler = std::vector<std::unique_ptr<DiscadeltaSegment>>;
+    using SegmentsPtrHandler = std::vector<std::unique_ptr<Segment>>;
 }
