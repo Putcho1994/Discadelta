@@ -3,6 +3,7 @@
 #include <memory>
 #include <thread>
 #include <vector>
+#include <algorithm>
 
 struct DiscadeltaSegment {
     std::string name{"none"};//optional
@@ -105,7 +106,7 @@ constexpr auto MakeDiscadeltaContext = [](const std::vector<DiscadeltaSegmentCon
     return { std::move(segments), std::move(preComputeMetrics), processingCompression };
 };
 
-constexpr void RedistributeDiscadeltaCompressDistance(const DiscadeltaPreComputeMetrics& preComputeMetrics) {
+void RedistributeDiscadeltaCompressDistance(const DiscadeltaPreComputeMetrics& preComputeMetrics) {
     float cascadeCompressDistance = preComputeMetrics.inputDistance;
     float cascadeBaseDistance = preComputeMetrics.accumulateBaseDistance;
     float cascadeCompressSolidify = preComputeMetrics.accumulateCompressSolidify;
@@ -162,7 +163,7 @@ constexpr void RedistributeDiscadeltaCompressDistance(const DiscadeltaPreCompute
     }
 }
 
-constexpr void RedistributeDiscadeltaExpandDistance(const DiscadeltaPreComputeMetrics& preComputeMetrics) {
+void RedistributeDiscadeltaExpandDistance(const DiscadeltaPreComputeMetrics& preComputeMetrics) {
     float cascadeExpandDelta = std::max(preComputeMetrics.inputDistance - preComputeMetrics.accumulateBaseDistance, 0.0f);
     float cascadeExpandRatio = preComputeMetrics.accumulateExpandRatio;
     if (cascadeExpandDelta <= 0.0f) return;

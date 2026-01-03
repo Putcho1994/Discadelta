@@ -3,6 +3,7 @@
 #include <format>
 #include <iomanip>
 #include <thread>
+#include <algorithm>
 
 struct DiscadeltaSegment {
     float base;
