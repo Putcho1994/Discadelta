@@ -64,7 +64,7 @@ This sorting ensures the cascade processes in an order that minimizes bias, achi
 
 #### Helper Method
 ```cpp
-static float DiscadeltaScaler(const float& distance, const float& accumulateFactor, const float& factor) {
+constexpr float DiscadeltaScaler(const float& distance, const float& accumulateFactor, const float& factor) {
     return distance <= 0.0f || accumulateFactor <= 0.0f || factor <= 0.0f ? 0.0f : distance / accumulateFactor * factor;
 }
 ```
@@ -102,7 +102,7 @@ This single pass achieves the same fairness as recursion by ordering intelligent
 Similarly, for expansion, process high-growth segments first:
 
 ```cpp
-constexpr void DiscadeltaExpanding(const DiscadeltaPreComputeMetrics& preComputeMetrics) {
+void DiscadeltaExpanding(const DiscadeltaPreComputeMetrics& preComputeMetrics) {
     float cascadeExpandDelta = std::max(preComputeMetrics.inputDistance - preComputeMetrics.accumulateBaseDistance, 0.0f);
     float cascadeExpandRatio = preComputeMetrics.accumulateExpandRatio;
 
@@ -270,11 +270,11 @@ constexpr auto MakeDiscadeltaContext = [](const std::vector<DiscadeltaSegmentCon
     return { std::move(segments), std::move(preComputeMetrics), processingCompression };
 };
 
-static float DiscadeltaScaler(const float& distance, const float& accumulateFactor, const float& factor) {
+constexpr float DiscadeltaScaler(const float& distance, const float& accumulateFactor, const float& factor) {
     return distance <= 0.0f || accumulateFactor <= 0.0f || factor <= 0.0f ? 0.0f : distance / accumulateFactor * factor;
 }
 
-constexpr void DiscadeltaCompressing(const DiscadeltaPreComputeMetrics& preComputeMetrics) {
+void DiscadeltaCompressing(const DiscadeltaPreComputeMetrics& preComputeMetrics) {
     float cascadeCompressDistance = preComputeMetrics.inputDistance;
     float cascadeBaseDistance = preComputeMetrics.accumulateBaseDistance;
     float cascadeCompressSolidify = preComputeMetrics.accumulateCompressSolidify;
@@ -300,7 +300,7 @@ constexpr void DiscadeltaCompressing(const DiscadeltaPreComputeMetrics& preCompu
     }
 }
 
-constexpr void DiscadeltaExpanding(const DiscadeltaPreComputeMetrics& preComputeMetrics) {
+void DiscadeltaExpanding(const DiscadeltaPreComputeMetrics& preComputeMetrics) {
     float cascadeExpandDelta = std::max(preComputeMetrics.inputDistance - preComputeMetrics.accumulateBaseDistance, 0.0f);
     float cascadeExpandRatio = preComputeMetrics.accumulateExpandRatio;
 

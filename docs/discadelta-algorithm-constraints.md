@@ -371,7 +371,7 @@ When a segment hits a constraint, we recalculate the remaining layout recursivel
 We use a Recursive Safeguard. We track how many segments we tried to process vs. how many were actually flexible. If a segment was clamped, we trigger a recursion with the updated "remaining" distance and a smaller pool of segments.
 
 ```cpp
-constexpr void RedistributeDiscadeltaCompressDistance(const DiscadeltaPreComputeMetrics& preComputeMetrics) {
+void RedistributeDiscadeltaCompressDistance(const DiscadeltaPreComputeMetrics& preComputeMetrics) {
     float cascadeCompressDistance = preComputeMetrics.inputDistance;
     float cascadeBaseDistance = preComputeMetrics.accumulateBaseDistance;
     float cascadeCompressSolidify = preComputeMetrics.accumulateCompressSolidify;
@@ -434,7 +434,7 @@ Expansion follows a similar recursive principle but focuses on the max constrain
 
 #### The Expansion Logic
 ```cpp
-constexpr void RedistributeDiscadeltaExpandDistance(const DiscadeltaPreComputeMetrics& preComputeMetrics) {
+void RedistributeDiscadeltaExpandDistance(const DiscadeltaPreComputeMetrics& preComputeMetrics) {
     float cascadeExpandDelta = std::max(preComputeMetrics.inputDistance - preComputeMetrics.accumulateBaseDistance, 0.0f);
     float cascadeExpandRatio = preComputeMetrics.accumulateExpandRatio;
     if (cascadeExpandDelta <= 0.0f) return;
