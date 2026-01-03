@@ -5,17 +5,14 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-# Core library (interface for modules)
-add_library(discadelta_core OBJECT)
-target_sources(discadelta_core
-        PUBLIC
-        FILE_SET CXX_MODULES TYPE CXX_MODULES FILES
-        core/ufox_discadelta_lib.cppm
-        core/ufox_discadelta_core.cppm
-)
+
+
+add_subdirectory(src)
+
+
 
 # Option to build samples (default ON)
-option(DISCADELTA_SAMPLES "Build sample executables" OFF)
+option(DISCADELTA_SAMPLES "Build sample executables" ON)
 
 if(DISCADELTA_SAMPLES)
     message(STATUS "Building Discadelta samples")
@@ -25,13 +22,13 @@ if(DISCADELTA_SAMPLES)
     add_executable(ch04_placing     samples/chapter_04_sample.cpp)
 
     # Link chapter_04 to core (others are standalone)
-    target_link_libraries(ch04_placing PRIVATE discadelta_core)
+    target_link_libraries(ch04_placing PRIVATE src)
 endif()
 
 # === Installation ===
 include(GNUInstallDirs)
 
-install(TARGETS discadelta_core
+install(TARGETS src
         EXPORT DiscadeltaTargets
         FILE_SET CXX_MODULES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/ufox/geometry/discadelta
 )
