@@ -69,7 +69,7 @@ int main() {
               {"Segment_3", 150.0f, 0.0f, 2.0f, 0.0f, 200.0f, 3},
               {"Segment_4", 350.0f, 0.3f, 0.5f, 50.0f, 300.0f, 0}};
 
-    constexpr float rootDistance = 800.0f;
+    constexpr float rootDistance = 1300.0f;
     auto [segmentDistances, preComputeMetrics, processingCompression] = ufox::geometry::discadelta::MakeContext(segmentConfigs, rootDistance);
 
     if (processingCompression) {
