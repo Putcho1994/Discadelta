@@ -42,7 +42,7 @@ Add to your CMakeLists.txt:
 include(FetchContent)
 FetchContent_Declare(
     Discadelta
-    GIT_REPOSITORY https://github.com/yourusername/Discadelta.git
+    GIT_REPOSITORY Putcho1994/Discadelta
     GIT_TAG v1.0.0  # Use latest tag
 )
 FetchContent_MakeAvailable(Discadelta)
