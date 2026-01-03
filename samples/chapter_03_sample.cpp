@@ -1,0 +1,282 @@
+#include <iomanip>
+#include <iostream>
+#include <memory>
+#include <thread>
+#include <vector>
+
+struct DiscadeltaSegment {
+    std::string name{"none"};//optional
+    float base{0.0f};
+    float expandDelta{0.0f};
+    float distance{0.0f};
+};
+
+struct DiscadeltaSegmentConfig {
+    std::string name{"none"};//optional
+    float base{0.0f};
+    float compressRatio{0.0f};
+    float expandRatio{0.0f};
+    float min{0.0f};
+    float max{0.0f};
+};
+
+struct DiscadeltaPreComputeMetrics {
+    float inputDistance{};
+    std::vector<float> compressCapacities{};
+    std::vector<float> compressSolidifies{};
+    std::vector<float> baseDistances{};
+    std::vector<float> expandRatios{};
+    std::vector<float> minDistances{};
+    std::vector<float> maxDistances{};
+
+    float accumulateBaseDistance{0.0f};
+    float accumulateCompressSolidify{0.0f};
+    float accumulateExpandRatio{0.0f};
+
+    // NEW: Non-owning pointers — safe because ownedSegments outlives metrics
+    std::vector<DiscadeltaSegment*> segments;
+
+    std::vector<size_t> compressPriorityIndies;
+    std::vector<size_t> expandPriorityIndies;
+
+    DiscadeltaPreComputeMetrics() = default;
+    ~DiscadeltaPreComputeMetrics() = default;
+
+    explicit DiscadeltaPreComputeMetrics(const size_t segmentCount, const float& rootBase) : inputDistance(rootBase) {
+        compressCapacities.reserve(segmentCount);
+        compressSolidifies.reserve(segmentCount);
+        baseDistances.reserve(segmentCount);
+        expandRatios.reserve(segmentCount);
+        minDistances.reserve(segmentCount);
+        maxDistances.reserve(segmentCount);
+        segments.reserve(segmentCount);
+
+        compressPriorityIndies.reserve(segmentCount);
+        expandPriorityIndies.reserve(segmentCount);
+    }
+};
+
+using DiscadeltaSegmentsHandler = std::vector<std::unique_ptr<DiscadeltaSegment>>;
+
+constexpr auto MakeDiscadeltaContext = [](const std::vector<DiscadeltaSegmentConfig>& configs, const float inputDistance) -> std::tuple<DiscadeltaSegmentsHandler, DiscadeltaPreComputeMetrics, bool>
+{
+    const float validatedInputDistance = std::max(0.0f, inputDistance);
+    const size_t segmentCount = configs.size();
+
+    DiscadeltaSegmentsHandler segments;
+    segments.reserve(segmentCount);
+
+    DiscadeltaPreComputeMetrics preComputeMetrics(segmentCount, validatedInputDistance);
+
+    float compressPriorityLowestValue = std::numeric_limits<float>::max();
+    float expandPriorityLowestValue{0.0f};
+
+    for (size_t i = 0; i < segmentCount; ++i) {
+        const auto& [name, rawBase, rawCompressRatio, rawExpandRatio, rawMin, rawMax] = configs[i];
+
+        // --- INPUT VALIDATION ---
+        const float minVal = std::max(0.0f, rawMin);
+        const float maxVal = std::max(minVal, rawMax);
+        const float baseVal = std::clamp(rawBase, minVal, maxVal);
+
+        const float compressRatio = std::max(0.0f, rawCompressRatio);
+        const float expandRatio   = std::max(0.0f, rawExpandRatio);
+
+        // --- COMPRESS METRICS ---
+        const float compressCapacity = baseVal * compressRatio;
+        const float compressSolidify = std::max (0.0f, baseVal - compressCapacity);
+
+        // --- STORE PRE-COMPUTE ---
+        preComputeMetrics.compressCapacities.push_back(compressCapacity);
+        preComputeMetrics.compressSolidifies.push_back(compressSolidify);
+        preComputeMetrics.baseDistances.push_back(baseVal);
+        preComputeMetrics.expandRatios.push_back(expandRatio);
+        preComputeMetrics.minDistances.push_back(minVal);
+        preComputeMetrics.maxDistances.push_back(maxVal);
+
+        preComputeMetrics.accumulateBaseDistance += baseVal;
+        preComputeMetrics.accumulateCompressSolidify += compressSolidify;
+        preComputeMetrics.accumulateExpandRatio += expandRatio;
+
+        // --- CREATE OWNED SEGMENT ---
+        auto seg = std::make_unique<DiscadeltaSegment>();
+        seg->name = name;
+        seg->base = baseVal;
+        seg->distance = baseVal;
+        seg->expandDelta = 0.0f;
+
+        preComputeMetrics.segments.push_back(seg.get());
+        segments.push_back(std::move(seg));
+
+        // --- COMPRESS PRIORITY ---
+        const float greaterMin = std::max(compressSolidify, minVal);
+        const float compressPriorityValue = std::max(0.0f, baseVal - greaterMin);
+
+        if (compressPriorityValue <= compressPriorityLowestValue) {
+            preComputeMetrics.compressPriorityIndies.insert(preComputeMetrics.compressPriorityIndies.begin(), i);
+            compressPriorityLowestValue = compressPriorityValue;
+        }
+        else {
+            preComputeMetrics.compressPriorityIndies.push_back(i);
+        }
+
+        // --- EXPAND PRIORITY ---
+        const float expandPriorityValue = std::max(0.0f, maxVal - baseVal);
+        if (expandPriorityValue >= expandPriorityLowestValue) {
+            preComputeMetrics.expandPriorityIndies.push_back(i);
+            expandPriorityLowestValue = expandPriorityValue;
+        }
+        else {
+            preComputeMetrics.expandPriorityIndies.insert(preComputeMetrics.expandPriorityIndies.begin(), i);
+        }
+    }
+
+    const bool processingCompression = validatedInputDistance < preComputeMetrics.accumulateBaseDistance;
+
+    return { std::move(segments), std::move(preComputeMetrics), processingCompression };
+};
+
+constexpr float DiscadeltaScaler(const float& distance, const float& accumulateFactor, const float& factor) {
+    return distance <= 0.0f || accumulateFactor <= 0.0f || factor <= 0.0f ? 0.0f : distance / accumulateFactor * factor;
+}
+
+constexpr void DiscadeltaCompressing(const DiscadeltaPreComputeMetrics& preComputeMetrics) {
+    float cascadeCompressDistance = preComputeMetrics.inputDistance;
+    float cascadeBaseDistance = preComputeMetrics.accumulateBaseDistance;
+    float cascadeCompressSolidify = preComputeMetrics.accumulateCompressSolidify;
+
+    for (size_t i = 0; i < preComputeMetrics.segments.size(); ++i) {
+        const size_t index = preComputeMetrics.compressPriorityIndies[i];
+        DiscadeltaSegment* seg = preComputeMetrics.segments[index];
+        if (seg == nullptr) break;
+
+        const float remainDist = cascadeCompressDistance - cascadeCompressSolidify;
+        const float remainCap = cascadeBaseDistance - cascadeCompressSolidify;
+        const float& solidify = preComputeMetrics.compressSolidifies[index];
+
+        const float compressBaseDistance = DiscadeltaScaler(remainDist, remainCap, preComputeMetrics.compressCapacities[index]) + solidify;
+
+        const float& min = preComputeMetrics.minDistances[index];
+        const float clampedDist = std::max(compressBaseDistance, min);
+
+        seg->base = seg->distance = clampedDist;
+        cascadeCompressDistance -= clampedDist;
+        cascadeCompressSolidify -= solidify;
+        cascadeBaseDistance -= preComputeMetrics.baseDistances[index];
+    }
+}
+
+constexpr void DiscadeltaExpanding(const DiscadeltaPreComputeMetrics& preComputeMetrics) {
+    float cascadeExpandDelta = std::max(preComputeMetrics.inputDistance - preComputeMetrics.accumulateBaseDistance, 0.0f);
+    float cascadeExpandRatio = preComputeMetrics.accumulateExpandRatio;
+
+    if (cascadeExpandDelta <= 0.0f) return;
+
+    for (size_t i = 0; i < preComputeMetrics.segments.size(); ++i) {
+        const size_t index = preComputeMetrics.expandPriorityIndies[i];
+        DiscadeltaSegment* seg = preComputeMetrics.segments[index];
+        const float& base = preComputeMetrics.baseDistances[index];
+        const float& ratio = preComputeMetrics.expandRatios[index];
+
+        const float expandDelta = DiscadeltaScaler(cascadeExpandDelta, cascadeExpandRatio, ratio);
+        // const float expandDelta = cascadeExpandRatio <= 0.0f || ratio <= 0.0f ? 0.0f :
+        //                            cascadeExpandDelta / cascadeExpandRatio * ratio;
+
+        // Apply MAX Constraint
+        const float maxDelta = std::max(0.0f, preComputeMetrics.maxDistances[index] - base);
+        const float clampedDelta = std::min(expandDelta, maxDelta);
+
+        seg->expandDelta = clampedDelta;
+        seg->distance = base + clampedDelta;
+        cascadeExpandDelta -= clampedDelta;
+        cascadeExpandRatio -= ratio;
+    }
+}
+
+int main()
+{
+    std::vector<DiscadeltaSegmentConfig> segmentConfigs{
+      {"Segment_1", 200.0f, 0.7f, 0.1f, 0.0f, 100.0f},
+      {"Segment_2", 200.0f, 1.0f, 1.0f, 300.0f, 800.0f},
+      {"Segment_3", 150.0f, 0.0f, 2.0f, 0.0f, 200.0f},
+      {"Segment_4", 350.0f, 0.3f, 0.5f, 50.0f, 300.0f}};
+
+    constexpr float rootDistance = 800.0f;
+    auto [segmentDistances, preComputeMetrics, processingCompression] = MakeDiscadeltaContext(segmentConfigs, rootDistance);
+
+    if (processingCompression) {
+        DiscadeltaCompressing(preComputeMetrics);
+    }
+    else {
+        DiscadeltaExpanding(preComputeMetrics);
+    }
+
+#pragma region //Print Result
+    std::cout << "\n=== Pre-compute & Scaling Pass Constraints Pass Optimization ===\n";
+    std::cout << std::format("Input distance: {}", rootDistance)<< std::endl;
+
+    // Table header
+    std::cout << std::left
+              << "|"
+              << std::setw(10) << "Segment"
+              << "|"
+              << std::setw(20) << "Compress Solidify"
+              << "|"
+              << std::setw(20) << "Compress Capacity"
+              << "|"
+              << std::setw(20) << "Compress Distance"
+              << "|"
+              << std::setw(15) << "Expand Delta"
+              << "|"
+              << std::setw(20) << "Scaled Distance"
+              << "|"
+              << std::endl;
+
+    std::cout << std::left
+                   << "|"
+                   << std::string(10, '-')
+                   << "|"
+                   << std::string(20, '-')
+                   << "|"
+                   << std::string(20, '-')
+                   << "|"
+                   << std::string(20, '-')
+                   << "|"
+                   << std::string(15, '-')
+                   << "|"
+                   << std::string(20, '-')
+                   << "|"
+                   << std::endl;
+
+
+    float total{0.0f};
+    for (size_t i = 0; i < segmentDistances.size(); ++i) {
+        const auto& res = segmentDistances[i];
+
+        total += res->distance;
+
+        std::cout << std::fixed << std::setprecision(3)
+                  << "|"
+                  << std::setw(10) << (i + 1)
+                  << "|"
+                  << std::setw(20) << std::format("Total: {:.4f}",preComputeMetrics.compressSolidifies[i])
+                  << "|"
+                  << std::setw(20) << std::format("Total: {:.4f}",preComputeMetrics.compressCapacities[i])
+                  << "|"
+                  << std::setw(20) << std::format("Total: {:.4f}",res->base)
+                  << "|"
+                  << std::setw(15) << std::format("Total: {:.4f}",res->expandDelta)
+                  << "|"
+                  << std::setw(20) << std::format("Total: {:.4f}",res->distance)
+                  << "|"
+                  << std::endl;
+    }
+
+
+    std::cout << std::format("Total: {:.4f} (expected 800.0)\n", total);
+
+    std::this_thread::sleep_for(std::chrono::seconds(2));
+        #pragma endregion //Print Result
+
+        return 0;
+    }
