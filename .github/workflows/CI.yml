@@ -40,21 +40,12 @@ jobs:
         if: runner.os == 'Windows'
         uses: ilammy/msvc-dev-cmd@v1
 
-      # macOS: Disable module scanning (AppleClang limitation)
-      - name: Configure CMake (with macOS workaround)
+      - name: Configure CMake
         run: |
-          if [[ "${{ runner.os }}" == "macOS" ]]; then
-            cmake -B build \
-                  -G Ninja \
-                  -DCMAKE_BUILD_TYPE=Release \
-                  -DDISCADELTA_SAMPLES=ON \
-                  -DCMAKE_CXX_SCAN_FOR_MODULES=OFF
-          else
-            cmake -B build \
-                  -G Ninja \
-                  -DCMAKE_BUILD_TYPE=Release \
-                  -DDISCADELTA_SAMPLES=ON
-          fi
+          cmake -B build \
+                -G Ninja \
+                -DCMAKE_BUILD_TYPE=Release \
+                -DDISCADELTA_SAMPLES=ON
 
       - name: Build
         run: cmake --build build --config Release --parallel
