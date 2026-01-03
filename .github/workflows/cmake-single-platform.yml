@@ -1,0 +1,74 @@
+# This starter workflow is for a CMake project running on a single platform. There is a different starter workflow if you need cross-platform coverage.
+# See: https://github.com/actions/starter-workflows/blob/main/ci/cmake-multi-platform.yml
+name: CMake on a single platform
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+env:
+  # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
+  BUILD_TYPE: Release
+
+jobs:
+  build-and-test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        # Optional: add compiler matrix if needed later (gcc/clang)
+        # include:
+        #   - os: ubuntu-latest
+        #     cc: gcc
+        #     cxx: g++
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up CMake (latest)
+      uses: lukka/get-cmake@latest
+
+    - name: Set up Ninja (faster builds)
+      uses: turtlesec/no-deadline-ninja-action@v1
+
+    # For Windows: Use latest Visual Studio (MSVC supports modules well)
+    - name: Setup MSVC (Windows only)
+      if: runner.os == 'Windows'
+    - uses: ilammy/msvc-dev-cmd@v1
+
+      # For Ubuntu: Ensure recent Clang/GCC for C++23 modules
+    - name: Install Clang (Ubuntu only)
+      if: runner.os == 'Linux'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y clang-18 libc++-18-dev libc++abi-18-dev
+        echo "CC=clang-18" >> $GITHUB_ENV
+        echo "CXX=clang++-18" >> $GITHUB_ENV
+
+    - name: Configure CMake
+      run: |
+        cmake -B build \
+              -G Ninja \
+              -DCMAKE_BUILD_TYPE=Release \
+              -DDISCADELTA_SAMPLES=ON
+
+    - name: Build
+      run: cmake --build build --config Release --parallel
+
+    - name: Run samples (with output)
+      run: 
+        echo "=== Running ch01_basic ==="
+        ./build/ch01_basic || echo "ch01 failed"
+        echo "=== Running ch02_constraints ==="
+        ./build/ch02_constraints || echo "ch02 failed"
+        echo "=== Running ch03_optimized ==="
+        ./build/ch03_optimized || echo "ch03 failed"
+        echo "=== Running ch04_placing ==="
+        ./build/ch04_placing || echo "ch04 failed"
+      shell: bash
+
