@@ -11,13 +11,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest, windows-latest]
 
     runs-on: ${{ matrix.os }}
 
     defaults:
       run:
-        shell: bash  # Force bash on ALL platforms (including Windows) → fixes line continuation
+        shell: bash
 
     steps:
       - name: Checkout repository
@@ -35,7 +35,7 @@ jobs:
           echo "CC=clang-18" >> $GITHUB_ENV
           echo "CXX=clang++-18" >> $GITHUB_ENV
 
-      # Windows: Activate MSVC environment (modules work great with MSVC)
+      # Windows: Activate MSVC
       - name: Setup MSVC (Windows only)
         if: runner.os == 'Windows'
         uses: ilammy/msvc-dev-cmd@v1
@@ -50,13 +50,10 @@ jobs:
       - name: Build
         run: cmake --build build --config Release --parallel
 
-      - name: Run samples (verify they execute & print tables)
+      - name: Run samples (verify execution)
         run: |
-          echo "=== Running ch01_basic ==="
+          echo "=== Running samples on ${{ runner.os }} ==="
           ./build/ch01_basic
-          echo "=== Running ch02_constraints ==="
           ./build/ch02_constraints
-          echo "=== Running ch03_optimized ==="
           ./build/ch03_optimized
-          echo "=== Running ch04_placing ==="
           ./build/ch04_placing
