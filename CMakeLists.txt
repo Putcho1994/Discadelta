@@ -15,8 +15,7 @@ target_sources(discadelta_core
 )
 
 # Option to build samples (default ON)
-option(DISCADELTA_SAMPLES "Build sample executables" ON)
-option(DISCADELTA_DOCS "Install documentation (docs/ folder)" OFF)
+option(DISCADELTA_SAMPLES "Build sample executables" OFF)
 
 if(DISCADELTA_SAMPLES)
     message(STATUS "Building Discadelta samples")
@@ -43,15 +42,6 @@ install(EXPORT DiscadeltaTargets
         DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/Discadelta
 )
 
-# === Conditional docs installation ===
-if(DISCADELTA_DOCS)
-    message(STATUS "Installing documentation (docs/ folder)")
-    install(DIRECTORY docs/
-            DESTINATION ${CMAKE_INSTALL_DOCDIR}
-    )
-else()
-    message(STATUS "Skipping documentation installation (DISCADELTA_DOCS=OFF)")
-endif()
 
 # Package config
 include(CMakePackageConfigHelpers)
