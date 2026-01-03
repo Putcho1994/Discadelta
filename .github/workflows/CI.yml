@@ -15,18 +15,18 @@ jobs:
 
     runs-on: ${{ matrix.os }}
 
+    defaults:
+      run:
+        shell: bash  # Force bash on ALL platforms (including Windows) → fixes line continuation
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # CMake is pre-installed; we just ensure latest version
-      - name: Set up CMake
+      - name: Set up CMake (latest)
         uses: lukka/get-cmake@latest
 
-      # Ninja is already on PATH on all runners → no install needed!
-      # (Optional: verify with "ninja --version")
-
-      # Linux: Use Clang-18 for best C++23 modules support
+      # Linux: Clang-18 for best C++23 modules support
       - name: Install Clang-18 (Ubuntu only)
         if: runner.os == 'Linux'
         run: |
@@ -35,7 +35,7 @@ jobs:
           echo "CC=clang-18" >> $GITHUB_ENV
           echo "CXX=clang++-18" >> $GITHUB_ENV
 
-      # Windows: Use latest MSVC (excellent modules support)
+      # Windows: Activate MSVC environment (modules work great with MSVC)
       - name: Setup MSVC (Windows only)
         if: runner.os == 'Windows'
         uses: ilammy/msvc-dev-cmd@v1
@@ -50,14 +50,13 @@ jobs:
       - name: Build
         run: cmake --build build --config Release --parallel
 
-      - name: Run samples (verify output)
+      - name: Run samples (verify they execute & print tables)
         run: |
-          echo "=== ch01_basic ==="
-          ./build/ch01_basic || echo "Failed (expected exit 0)"
-          echo "=== ch02_constraints ==="
-          ./build/ch02_constraints || echo "Failed"
-          echo "=== ch03_optimized ==="
-          ./build/ch03_optimized || echo "Failed"
-          echo "=== ch04_placing ==="
-          ./build/ch04_placing || echo "Failed"
-        shell: bash  # Cross-platform safe
+          echo "=== Running ch01_basic ==="
+          ./build/ch01_basic
+          echo "=== Running ch02_constraints ==="
+          ./build/ch02_constraints
+          echo "=== Running ch03_optimized ==="
+          ./build/ch03_optimized
+          echo "=== Running ch04_placing ==="
+          ./build/ch04_placing
