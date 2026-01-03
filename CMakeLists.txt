@@ -43,12 +43,14 @@ install(EXPORT DiscadeltaTargets
         DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/Discadelta
 )
 
-# Optional: Install docs only if enabled
+# === Conditional docs installation ===
 if(DISCADELTA_DOCS)
+    message(STATUS "Installing documentation (docs/ folder)")
     install(DIRECTORY docs/
-            DESTINATION ${CMAKE_INSTALL_DOCSDIR}
-            OPTIONAL
+            DESTINATION ${CMAKE_INSTALL_DOCDIR}
     )
+else()
+    message(STATUS "Skipping documentation installation (DISCADELTA_INSTALL_DOCS=OFF)")
 endif()
 
 # Package config
