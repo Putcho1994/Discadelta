@@ -70,11 +70,10 @@ std::vector<ufox::geometry::discadelta::DiscadeltaSegmentConfig> segmentConfigs{
 ### Rescaling
 
 ```cpp
-// In your code...
 float rootDistance = 800.0f;
 auto [segments, metrics, compressing] = ufox::geometry::discadelta::MakeContext(configs, width);
 
-if (processingCompression) {
+if (compressing) {
    ufox::geometry::discadelta::Compressing(preComputeMetrics);
 }
 else {
