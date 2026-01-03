@@ -256,4 +256,99 @@ export namespace ufox::geometry::discadelta {
             preComputeMetrics.segments, [&](const auto& seg) { return seg->name == name; });
         if (it != preComputeMetrics.segments.end()) (*it)->order = order;
     }
+
+
+    /**
+     * Constructs a `SegmentConfig` object with validated and clamped parameters.
+     *
+     * @param name A string representing the name of the segment. It is moved into the configuration.
+     * @param rawBase A floating-point value representing the base value for the segment.
+     *                It is clamped to the range [rawMin, rawMax].
+     * @param rawCompressRatio A floating-point value representing the compression ratio.
+     *                         It is clamped to be >= 0. Default is 1.0.
+     * @param rawExpandRatio A floating-point value representing the expansion ratio.
+     *                       It is clamped to be >= 0. Default is 1.0.
+     * @param rawMin A floating-point value representing the minimum allowed value for the base.
+     *               It is clamped to be >= 0. Default is 0.0.
+     * @param rawMax A floating-point value representing the maximum allowed value for the base.
+     *               It is clamped to be >= rawMin. Default is the maximum valid float.
+     * @param rawOrder An unsigned integer representing the order of the segment. Default is 0.
+     * @return A `SegmentConfig` object with all fields properly initialized and values validated
+     *         or clamped based on the provided inputs.
+     *
+     * This function ensures:
+     * - Minimum value is non-negative.
+     * - Maximum value is at least equal to the minimum.
+     * - Base value is clamped between the minimum and maximum.
+     * - Compression and expansion ratios are non-negative.
+     */
+    constexpr SegmentConfig MakeConfig(
+        std::string name,
+        float rawBase,
+        float rawCompressRatio = 1.0f,
+        float rawExpandRatio = 1.0f,
+        float rawMin = 0.0f,
+        float rawMax = std::numeric_limits<float>::max(),
+        size_t rawOrder = 0
+    ) noexcept {
+        SegmentConfig config;
+
+        config.name = std::move(name);
+        config.order = rawOrder;
+
+        // 1. Min must be >= 0
+        const float minVal = std::max(0.0f, rawMin);
+
+        // 2. Max must be >= min
+        const float maxVal = std::max(minVal, rawMax);
+
+        // 3. Base clamped to [min, max]
+        const float baseVal = std::clamp(rawBase, minVal, maxVal);
+
+        // 4. Ratios clamped to >= 0
+        const float compressRatio = std::max(0.0f, rawCompressRatio);
+        const float expandRatio   = std::max(0.0f, rawExpandRatio);
+
+        config.base = baseVal;
+        config.compressRatio = compressRatio;
+        config.expandRatio = expandRatio;
+        config.min = minVal;
+        config.max = maxVal;
+
+        return config;
+    }
+
+
+    /**
+     * A utility function that creates and initializes a `SegmentConfig` using raw parameters.
+     *
+     * @param name A null-terminated string representing the name of the segment.
+     * @param rawBase A floating-point value specifying the base value for the segment.
+     * @param rawCompressRatio An optional floating-point value representing the compression ratio
+     *        applied to the segment. Defaults to 1.0.
+     * @param rawExpandRatio An optional floating-point value representing the expansion ratio
+     *        applied to the segment. Defaults to 1.0.
+     * @param rawMin An optional floating-point value specifying the minimum range for the
+     *        segment. Defaults to 0.0.
+     * @param rawMax An optional floating-point value specifying the maximum range for the
+     *        segment. Defaults to the maximum representable float value.
+     * @param rawOrder An optional integer value defining the order or priority of the segment.
+     *        Defaults to 0.
+     * @return A `SegmentConfig` object constructed using the provided parameters. The function
+     *         internally delegates to an overloaded version accepting a `std::string` for the name.
+     *
+     * This function provides a convenient way to initialize a `SegmentConfig` with lightweight
+     * input arguments, ensuring valid parameter conversion and delegation.
+     */
+    SegmentConfig MakeConfig(
+        const char* name,
+        float rawBase,
+        float rawCompressRatio = 1.0f,
+        float rawExpandRatio = 1.0f,
+        float rawMin = 0.0f,
+        float rawMax = std::numeric_limits<float>::max(),
+        size_t rawOrder = 0
+    ) noexcept {
+        return MakeConfig(std::string(name), rawBase, rawCompressRatio, rawExpandRatio, rawMin, rawMax, rawOrder);
+    }
 }
