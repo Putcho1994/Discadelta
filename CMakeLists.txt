@@ -16,6 +16,7 @@ target_sources(discadelta_core
 
 # Option to build samples (default ON)
 option(DISCADELTA_SAMPLES "Build sample executables" ON)
+option(DISCADELTA_DOCS   "Install documentation (docs/ folder)" OFF)
 
 if(DISCADELTA_SAMPLES)
     message(STATUS "Building Discadelta samples")
@@ -28,27 +29,36 @@ if(DISCADELTA_SAMPLES)
     target_link_libraries(ch04_placing PRIVATE discadelta_core)
 endif()
 
-# Installation for CPM/package use
+# === Installation ===
+include(GNUInstallDirs)
+
 install(TARGETS discadelta_core
         EXPORT DiscadeltaTargets
-        FILE_SET CXX_MODULES DESTINATION include/ufox/geometry/discadelta
+        FILE_SET CXX_MODULES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/ufox/geometry/discadelta
 )
 
 install(EXPORT DiscadeltaTargets
         FILE DiscadeltaTargets.cmake
         NAMESPACE Discadelta::
-        DESTINATION lib/cmake/Discadelta
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/Discadelta
 )
 
-# Generate package config
+# Optional: Install docs only if enabled
+if(DISCADELTA_INSTALL_DOCS)
+    install(DIRECTORY docs/
+            DESTINATION ${CMAKE_INSTALL_DOCDIR}
+            OPTIONAL
+    )
+endif()
+
+# Package config
 include(CMakePackageConfigHelpers)
 configure_package_config_file(
-        DiscadeltaConfig.cmake.in
+        cmake/DiscadeltaConfig.cmake.in
         ${CMAKE_CURRENT_BINARY_DIR}/DiscadeltaConfig.cmake
-        INSTALL_DESTINATION lib/cmake/Discadelta
+        INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/Discadelta
 )
 
-install(FILES
-        ${CMAKE_CURRENT_BINARY_DIR}/DiscadeltaConfig.cmake
-        DESTINATION lib/cmake/Discadelta
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/DiscadeltaConfig.cmake
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/Discadelta
 )
