@@ -5,8 +5,8 @@ module;
 
 #include <memory>
 #include <string>
-#include <unordered_map>
 #include <vector>
+#include <algorithm>
 
 export module ufox_discadelta_lib;
 
@@ -67,5 +67,67 @@ export namespace ufox::geometry::discadelta {
         }
     };
 
+    struct Nester {
+    Nester* parent{nullptr};
+    std::vector<Nester*> children;
+
+    std::unique_ptr<const SegmentConfig> ownedContent;
+
+    float accumulateBaseDistance{0.0f};
+
+     explicit constexpr Nester(SegmentConfig config_, Nester* parent_ = nullptr)
+        : parent(parent_)
+        , ownedContent(std::make_unique<const SegmentConfig>(std::move(config_)))
+    {}
+
+    [[nodiscard]] constexpr  float GetOwnBase() const noexcept {
+        return ownedContent ? ownedContent->base : 0.0f;
+    }
+
+    [[nodiscard]] constexpr  float GetGreaterBaseDistance() const noexcept {
+        return std::max(accumulateBaseDistance, GetOwnBase());
+    }
+
+    void constexpr Add(Nester* child) noexcept {
+        if (!child || child == this) return;  // Safety
+
+        children.push_back(child);
+        if (child->parent != this) {
+            if (child->parent) {
+                child->parent->Remove(child);  // Detach from old parent
+            }
+            child->parent = this;
+        }
+
+        // Update accumulation: add child's full subtree demand
+        accumulateBaseDistance += child->GetGreaterBaseDistance();
+    }
+
+    void Remove(Nester* child) noexcept {
+        if (!child) return;
+
+        auto it = std::ranges::find(children, child);
+        if (it != children.end()) {
+            accumulateBaseDistance -= child->GetGreaterBaseDistance();
+            children.erase(it);
+            child->parent = nullptr;
+        }
+    }
+
+    // Optional: clear all children recursively
+    void constexpr Clear() noexcept {
+        for (Nester* child : children) {
+            child->parent = nullptr;
+        }
+        children.clear();
+        accumulateBaseDistance = 0.0f;
+    }
+
+    ~Nester() {
+        Clear();  // Break cycles safely
+    }
+};
+
     using SegmentsPtrHandler = std::vector<std::unique_ptr<Segment>>;
+
 }
