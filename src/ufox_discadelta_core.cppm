@@ -18,26 +18,32 @@ import ufox_discadelta_lib;
 
 export namespace ufox::geometry::discadelta {
     /**
-     * A constexpr lambda function that generates and initializes the context for Discadelta processing.
+     * Creates a context for processing segment configurations and input distances, constructing
+     * associated metrics and determining the compression state.
      *
-     * @param configs A vector of `DiscadeltaSegmentConfig` structures, each containing parameters
-     *        for a segment such as name, base value, compression and expansion ratios,
-     *        min/max distances, and order.
-     * @param inputDistance A floating-point value representing the input distance used
-     *        for processing. It is validated to be non-negative.
-     * @return A tuple consisting of:
-     *         - `DiscadeltaSegmentsHandler`: A container holding the initialized segments.
-     *         - `DiscadeltaPreComputeMetrics`: Precomputed metrics for Discadelta processing,
-     *           aggregating information such as compression capacities, base distances,
-     *           and priority indices.
-     *         - `bool`: A flag indicating whether the processing involves compression
-     *           (true) or expansion (false) based on the input distance.
+     * @param configs A constant reference to a vector of `SegmentConfig` structures, each containing
+     *        the configuration data for a segment, including names, base values, compression/expansion
+     *        ratios, min/max allowed distances and processing order.
+     * @param inputDistance A floating-point value representing the input distance to be validated
+     *        and used in the context computation.
      *
-     * This function initializes the segments with validated and clamped properties based on
-     * the provided configuration. It calculates various pre-computation metrics, such as
-     * compression capacity, base values, expand ratios, and priority indices for all segments.
+     * @return A tuple containing:
+     *         - `SegmentsPtrHandler`: A collection of dynamically allocated and initialized `Segment`
+     *           objects based on the provided configurations.
+     *         - `PreComputeMetrics`: A structure containing precomputed metrics such as base distances,
+     *           compression capacities, solidified compression values, minimum and maximum constraints,
+     *           prioritized indices for compression and expansion, and accumulated values (e.g., total
+     *           base distance, accumulated compression solidification and expansion ratios).
+     *         - `bool`: A boolean value indicating if the process involves compression, determined by
+     *           comparing the validated input distance with the accumulated base distance.
+     *
+     * Iterates through each segment configuration, validates and clamps the provided values to respect
+     * constraints and computes metrics such as compression/expansion priorities, capacities and limits.
+     * Dynamically creates segments, assigns computed attributes and organizes them into a handler.
+     * Also determines the order of segments based on their compression and expansion priority, ensuring
+     * that the resulting metrics and structure are ready for the next phase of processing.
      */
-    constexpr auto MakeContext = [](const std::vector<SegmentConfig>& configs, const float inputDistance) -> std::tuple<SegmentsPtrHandler, PreComputeMetrics, bool>{
+    auto MakeContext = [](const std::vector<SegmentConfig>& configs, const float inputDistance) -> std::tuple<SegmentsPtrHandler, PreComputeMetrics, bool>{
         const float validatedInputDistance = std::max(0.0f, inputDistance);
         const size_t segmentCount = configs.size();
 
@@ -110,17 +116,23 @@ export namespace ufox::geometry::discadelta {
     };
 
     /**
-     * A constexpr function to compute a scaled distance value based on provided factors.
+     * Computes a scaled value based on a given distance, accumulation factor and scaling factor,
+     * ensuring all inputs are positive and valid.
      *
-     * @param distance The input distance value to scale. It is validated to be greater than zero.
-     * @param accumulateFactor A scaling factor used to normalize the input distance. It is validated to be greater than zero.
-     * @param factor A scaling multiplier to apply after normalization. It is validated to be greater than zero.
-     * @return The scaled distance value, calculated as `(distance / accumulateFactor * factor)`.
-     *         Returns `0.0f` if any of the input parameters is less than or equal to zero.
+     * @param distance A floating-point value representing the input distance to be scaled.
+     *        Must be greater than 0.0f to produce a valid result.
+     * @param accumulateFactor A floating-point value representing the accumulation factor used
+     *        in scaling. Must be greater than 0.0f to avoid division by zero.
+     * @param factor A floating-point scaling factor applied to the result after dividing the
+     *        distance by the accumulateFactor. Must be greater than 0.0f.
      *
-     * This function ensures that invalid input parameters, such as non-positive values, result in a safe output of `0.0f`.
+     * @return The computed scaled value as a floating-point result. If any input parameter
+     *         is less than or equal to 0.0f, it returns 0.0f.
      */
-    constexpr float Scaler(const float& distance, const float& accumulateFactor, const float& factor) {
+    [[nodiscard]] constexpr float Scaler(float distance, float accumulateFactor, float factor) noexcept {
+        if (distance <= 0.0f || accumulateFactor <= 0.0f || factor <= 0.0f) {
+            return 0.0f;
+        }
         return distance <= 0.0f || accumulateFactor <= 0.0f || factor <= 0.0f ? 0.0f : distance / accumulateFactor * factor;
     }
 
@@ -132,12 +144,12 @@ export namespace ufox::geometry::discadelta {
      * @param preComputeMetrics A constant reference to a `DiscadeltaPreComputeMetrics` structure,
      *        containing precomputed quantities and configuration details such as input distances,
      *        accumulated distances, compression priorities, segment references, and individual
-     *        constraints (e.g., min distances, base distances, and compress capacities).
+     *        constraints (e.g., min distances, base distances and compress capacities).
      *
      * This method ensures that the segments' base and distance parameters are recalculated based
      * on the remaining distances and capacities in a cascading manner. It also enforces segment
      * constraints such as the minimum allowed distances, and updates cascading parameters
-     * post-segment adjustment to maintain consistency across subsequent computations.
+     * post-segment adjustment to maintain consistency across the following computations.
      */
     void Compressing(const PreComputeMetrics& preComputeMetrics) {
         float cascadeCompressDistance = preComputeMetrics.inputDistance;
@@ -171,7 +183,7 @@ export namespace ufox::geometry::discadelta {
      * @param preComputeMetrics A reference to a `DiscadeltaPreComputeMetrics` structure
      *        that contains aggregated pre-computed data for the Discadelta processing, including
      *        input distance, accumulated base distance, expand ratios, priority indices, base distances,
-     *        maximum distances, and segment references.
+     *        maximum distances and segment references.
      *
      * This function evaluates the remaining expandable distance (`cascadeExpandDelta`) by subtracting
      * the accumulated base distance from the input distance, ensuring a non-negative value. It also
@@ -212,19 +224,20 @@ export namespace ufox::geometry::discadelta {
     }
 
     /**
-     * A constexpr function that arranges and adjusts segment offsets in a specified order
-     * within the provided pre-computed metrics for Discadelta processing.
+     * Adjusts the placement of segments by sorting them based on their processing order
+     * and calculates their respective offsets cumulatively.
      *
-     * @param preComputeMetrics A reference to a `DiscadeltaPreComputeMetrics` structure
-     *        containing the segments to be sorted and updated. Each segment has properties
-     *        such as order, distance, and offset, which are recalculated during the function.
+     * @param preComputeMetrics A reference to a `PreComputeMetrics` structure containing the segments
+     *        to be processed, their configuration details and precomputed metrics such as distance
+     *        and order. The `segments` vector is modified in-place, sorting the segments by their
+     *        `order` property and updating the `offset` for each segment based on their calculated
+     *        position.
      *
-     * This function sorts all segments within `preComputeMetrics` based on their `order` value
-     * in ascending order. After sorting, it calculates and assigns the offset for each segment,
-     * iteratively accumulating their distances to determine the next offset.
-     * Null pointers within the segments are safely skipped during processing.
+     * Sorts the segments in ascending order based on the `order` property and iteratively sets each
+     * segment's `offset` as the accumulated value of preceding segment distances. Segments with invalid
+     * or null pointers are skipped. Updates the cumulative offset after processing each segment's distance.
      */
-    constexpr void Placing(PreComputeMetrics& preComputeMetrics) {
+    void Placing(PreComputeMetrics& preComputeMetrics) {
         std::ranges::sort(preComputeMetrics.segments, [](const auto& a, const auto& b) {
             return a->order < b->order;
         });
@@ -241,17 +254,15 @@ export namespace ufox::geometry::discadelta {
 
 
     /**
-     * Updates the order of a specific segment within the pre-computed metrics.
+     * Sets the order of a specific segment within the precomputed metrics based on its name.
      *
-     * @param preComputeMetrics A reference to `DiscadeltaPreComputeMetrics` that contains
-     *        the collection of segments with pre-computed data for Discadelta processing.
-     * @param name A string view representing the name of the segment to locate and update.
-     * @param order A size_t value specifying the new order to assign to the target segment.
-     *
-     * The function searches for a segment by its name within the preComputeMetrics. If the
-     * specified segment is found, its order is updated to the provided value.
+     * @param preComputeMetrics A reference to a `PreComputeMetrics` structure containing the list
+     *        of segments and their associated precomputed attributes.
+     * @param name A constant string view representing the name of the segment whose order is to
+     *        be updated.
+     * @param order An unsigned integer specifying the new order to be assigned to the segment.
      */
-    constexpr void SetSegmentOrder(PreComputeMetrics& preComputeMetrics, std::string_view name, const size_t order) {
+    void SetSegmentOrder(PreComputeMetrics& preComputeMetrics, std::string_view name, const size_t order) {
         const auto it = std::ranges::find_if(
             preComputeMetrics.segments, [&](const auto& seg) { return seg->name == name; });
         if (it != preComputeMetrics.segments.end()) (*it)->order = order;

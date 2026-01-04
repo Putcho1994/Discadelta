@@ -73,9 +73,10 @@ export namespace ufox::geometry::discadelta {
 
     std::unique_ptr<const SegmentConfig> ownedContent;
 
+
     float accumulateBaseDistance{0.0f};
 
-     explicit constexpr Nester(SegmentConfig config_, Nester* parent_ = nullptr)
+    explicit Nester(SegmentConfig config_, Nester* parent_ = nullptr)
         : parent(parent_)
         , ownedContent(std::make_unique<const SegmentConfig>(std::move(config_)))
     {}
@@ -88,7 +89,7 @@ export namespace ufox::geometry::discadelta {
         return std::max(accumulateBaseDistance, GetOwnBase());
     }
 
-    void constexpr Add(Nester* child) noexcept {
+    void Add(Nester* child) noexcept {
         if (!child || child == this) return;  // Safety
 
         children.push_back(child);
@@ -115,7 +116,7 @@ export namespace ufox::geometry::discadelta {
     }
 
     // Optional: clear all children recursively
-    void constexpr Clear() noexcept {
+    void Clear() noexcept {
         for (Nester* child : children) {
             child->parent = nullptr;
         }
