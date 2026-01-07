@@ -84,8 +84,8 @@ ufox::geometry::discadelta::Placing(metrics);
 ```
 ### Reorder & Replacing
 ```cpp
-ufox::geometry::discadelta::SetSegmentOrder(preComputeMetrics, "Segment_1", 3);
-ufox::geometry::discadelta::SetSegmentOrder(preComputeMetrics, "Segment_3", 2);
+ufox::geometry::discadelta::SetSegmentOrder(metrics, "Segment_1", 3);
+ufox::geometry::discadelta::SetSegmentOrder(metrics, "Segment_3", 2);
 
-ufox::geometry::discadelta::Placing(preComputeMetrics);
+ufox::geometry::discadelta::Placing(metrics);
 ```
