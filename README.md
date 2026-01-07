@@ -74,10 +74,10 @@ float rootDistance = 800.0f;
 auto [segments, metrics, compressing] = ufox::geometry::discadelta::MakeContext(configs, width);
 
 if (compressing) {
-   ufox::geometry::discadelta::Compressing(preComputeMetrics);
+   ufox::geometry::discadelta::Compressing(metrics);
 }
 else {
-   ufox::geometry::discadelta::Expanding(preComputeMetrics);
+   ufox::geometry::discadelta::Expanding(metrics);
 }
 
 ufox::geometry::discadelta::Placing(preComputeMetrics);
