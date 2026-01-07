@@ -20,9 +20,10 @@ if(DISCADELTA_SAMPLES)
     add_executable(ch02_constraints samples/chapter_02_sample.cpp)
     add_executable(ch03_optimized   samples/chapter_03_sample.cpp)
     add_executable(ch04_placing     samples/chapter_04_sample.cpp)
-
+    add_executable(ch05_nesting     samples/chapter_05_sample.cpp)
     # Link chapter_04 to core (others are standalone)
     target_link_libraries(ch04_placing PRIVATE src)
+    target_link_libraries(ch05_nesting PRIVATE src)
 endif()
 
 # === Installation ===
@@ -51,3 +52,4 @@ configure_package_config_file(
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/DiscadeltaConfig.cmake
         DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/Discadelta
 )
+

@@ -307,16 +307,9 @@ export namespace ufox::geometry::discadelta {
         config.name = std::move(name);
         config.order = rawOrder;
 
-        // 1. Min must be >= 0
         const float minVal = std::max(0.0f, rawMin);
-
-        // 2. Max must be >= min
         const float maxVal = std::max(minVal, rawMax);
-
-        // 3. Base clamped to [min, max]
         const float baseVal = std::clamp(rawBase, minVal, maxVal);
-
-        // 4. Ratios clamped to >= 0
         const float compressRatio = std::max(0.0f, rawCompressRatio);
         const float expandRatio   = std::max(0.0f, rawExpandRatio);
 
