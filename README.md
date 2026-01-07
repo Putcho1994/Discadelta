@@ -80,7 +80,7 @@ else {
    ufox::geometry::discadelta::Expanding(metrics);
 }
 
-ufox::geometry::discadelta::Placing(preComputeMetrics);
+ufox::geometry::discadelta::Placing(metrics);
 ```
 ### Reorder & Replacing
 ```cpp
