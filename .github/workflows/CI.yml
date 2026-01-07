@@ -57,3 +57,4 @@ jobs:
           ./build/ch02_constraints
           ./build/ch03_optimized
           ./build/ch04_placing
+          ./build/ch05_nesting
