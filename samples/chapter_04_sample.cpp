@@ -64,7 +64,7 @@ void Debugger(const ufox::geometry::discadelta::SegmentsPtrHandler& segmentDista
 
 int main() {
 
-    std::vector<ufox::geometry::discadelta::SegmentConfig> segmentConfigs{
+    std::vector<ufox::geometry::discadelta::Configuration> segmentConfigs{
               {"Segment_1", 200.0f, 0.7f, 0.1f, 0.0f, 100.0f, 2},
               {"Segment_2", 200.0f, 1.0f, 1.0f, 300.0f, 800.0f, 1},
               {"Segment_3", 150.0f, 0.0f, 2.0f, 0.0f, 200.0f, 3},

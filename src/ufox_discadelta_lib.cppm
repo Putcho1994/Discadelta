@@ -5,8 +5,11 @@ module;
 
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 #include <algorithm>
+#include <ranges>
+#include <unordered_map>
 
 export module ufox_discadelta_lib;
 
@@ -21,7 +24,7 @@ export namespace ufox::geometry::discadelta {
         size_t order;
     };
 
-    struct SegmentConfig {
+    struct Configuration {
         std::string name{"none"};
         float base{0.0f};
         float compressRatio{0.0f};
@@ -67,44 +70,50 @@ export namespace ufox::geometry::discadelta {
         }
     };
 
-    struct Nester {
+    struct NestedSegment {
+        Configuration config{};
+        Segment content{};
+        PreComputeMetrics preComputeMetrics{};
+        NestedSegment() = default;
+        ~NestedSegment() = default;
 
-        const SegmentConfig* content{nullptr};
+        explicit NestedSegment(Configuration  config) : config(std::move(config)) { ValidatingConfig();}
 
-        ~Nester() = default;
+        [[nodiscard]] float GetBase() const noexcept { return base; }
 
-        explicit Nester(const SegmentConfig* config_) : content(config_) {}
+        [[nodiscard]] float GetMin() const noexcept { return min; }
 
-        [[nodiscard]] float GetBase() const noexcept {
-            return content ? content->base : 0.0f;
+        [[nodiscard]] float GetGreaterBase() const noexcept { return std::max(accumulateBaseDistance, base); }
+
+        [[nodiscard]] float GetGreaterMin() const noexcept { return std::max(accumulateMin, min); }
+
+        [[nodiscard]] uint32_t GetDepth() const noexcept { return depth; }
+
+        void ValidatingConfig() noexcept {
+            const float minVal = std::max(0.0f, config.min);
+            max = std::max(minVal, config.max);
+            base = std::clamp(config.base, minVal, max);
+
+            compressRatio = std::max(0.0f, config.compressRatio);
+            expandRatio   = std::max(0.0f, config.expandRatio);
+            compressCapacity = base * compressRatio;
+            compressSolidify = std::max (0.0f, base - compressCapacity);
+
+            min = std::max(compressSolidify, minVal);
         }
 
-        [[nodiscard]] float GetMin() const noexcept {
-            return content ? content->min : 0.0f;
-        }
 
-        [[nodiscard]] float GetGreaterBase() const noexcept {
-            return std::max(accumulateBaseDistance, GetBase());
-        }
-
-        [[nodiscard]] float GetGreaterMin() const noexcept {
-            return std::max(accumulateMin, GetMin());
-        }
-
-        [[nodiscard]] uint32_t GetDepth() const noexcept {
-            return depth;
-        }
-
-
-        void Link(Nester* new_parent) noexcept {
+        void Link(NestedSegment* new_parent) noexcept {
             if (!new_parent || new_parent == this) return;
 
             Unlink();
 
-            new_parent->children.push_back(this);
+            new_parent->children[config.name] = this;
             parent = new_parent;
             UpdateDepth();
-            RefreshAccumulateBaseDistance(depth, GetGreaterBase(), GetGreaterMin(), true);
+
+
+            RefreshAccumulateBaseDistance(depth, GetGreaterBase(), GetAccumulateMin(), true);
 
             root = parent->GetRoot();
         }
@@ -112,53 +121,78 @@ export namespace ufox::geometry::discadelta {
         void Unlink() noexcept {
             if (parent == nullptr) return;
 
-            parent->UnlinkChild(this);
-            RefreshAccumulateBaseDistance(depth, GetGreaterBase(), GetGreaterMin(), false);
+            parent->children.erase(config.name);
+
+            const float minVal = std::max(0.0f, config.min);
+            const float maxVal = std::max(minVal, config.max);
+            const float baseVal = std::clamp(config.base, minVal, maxVal);
+
+            const float greaterBase = std::max(accumulateBaseDistance, baseVal);
+            const float greaterMin = std::max(accumulateMin, minVal);
+
+            RefreshAccumulateBaseDistance(depth, greaterBase, greaterMin, false);
             parent = nullptr;
             UpdateDepth();
             root = this;
         }
 
-        void Clear() const noexcept {
+        void Clear() noexcept {
             while (!children.empty()) {
-                children.back()->Unlink();
+                auto it = children.begin();
+                it->second->Unlink();  // Safe: Unlink removes itself from parent map
             }
         }
 
-        [[nodiscard]] std::vector<Nester*> GetChildren() const noexcept { return children; }
+        [[nodiscard]] std::vector<NestedSegment*> GetChildren() const noexcept {
+            std::vector<NestedSegment*> result;
+            result.reserve(children.size());
+            for (const auto &val: children | std::views::values) {
+                result.push_back(val);
+            }
+            return result;
+        }
+
+        [[nodiscard]] NestedSegment* GetChildByName(const std::string& name) noexcept {
+            const auto it = children.find(name);
+            return it != children.end() ? it->second : nullptr;
+        }
 
         [[nodiscard]] float GetAccumulateBase() const noexcept { return accumulateBaseDistance; }
 
         [[nodiscard]] float GetAccumulateMin() const noexcept { return accumulateMin; }
 
-        [[nodiscard]] const Nester* GetRoot() const noexcept { return root; }
+        [[nodiscard]] const NestedSegment* GetRoot() const noexcept { return root; }
 
     private:
-        Nester* parent{nullptr};
-        std::vector<Nester*> children{};
+        NestedSegment* parent{nullptr};
+        std::unordered_map<std::string, NestedSegment*> children;
         uint32_t depth{0};
+
+        float min{0.0f};
+        float max{0.0f};
+        float base{0.0f};
+        float compressRatio{0.0f};
+        float expandRatio{0.0f};
+        float compressCapacity{0.0f};
+        float compressSolidify{0.0f};
 
         float accumulateBaseDistance{0.0f};
         float accumulateMin{0.0f};
+        float accumulateExpandRatio{0.0f};
 
-        mutable const Nester* root{this};
+        mutable const NestedSegment* root{this};
 
-        void UnlinkChild(Nester* child) noexcept {
-            auto it = std::ranges::find(children, child);
-            if (it != children.end()) {
-                children.erase(it);
-            }
-        }
 
         void UpdateDepth() noexcept {
             depth = parent ? parent->depth + 1 : 0;
 
-            for (Nester* child : children) {
-                child->UpdateDepth();
+            for (const auto &val: children | std::views::values) {
+                val->UpdateDepth();
             }
+
         }
 
-        void RefreshAccumulateBaseDistance(const uint32_t currentDepth, const float base, const float min, const bool isLink) const noexcept {
+        void RefreshAccumulateBaseDistance(const uint32_t& currentDepth, const float& base, const float& min, const bool& isLink) const noexcept {
             if (parent == nullptr || currentDepth <= 0) return;
             //Parent may have a different greater base, so we withdraw old greater base from parent's parent
             parent->RefreshAccumulateBaseDistance(parent->depth, parent->GetGreaterBase(), parent->GetGreaterMin(), false);
@@ -178,7 +212,7 @@ export namespace ufox::geometry::discadelta {
 
 
 
-        friend Nester;
+        friend NestedSegment;
     };
 
     using SegmentsPtrHandler = std::vector<std::unique_ptr<Segment>>;

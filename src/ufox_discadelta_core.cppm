@@ -43,7 +43,7 @@ export namespace ufox::geometry::discadelta {
      * Also determines the order of segments based on their compression and expansion priority, ensuring
      * that the resulting metrics and structure are ready for the next phase of processing.
      */
-    auto MakeContext = [](const std::vector<SegmentConfig>& configs, const float inputDistance) -> std::tuple<SegmentsPtrHandler, PreComputeMetrics, bool>{
+    auto MakeContext = [](const std::vector<Configuration>& configs, const float inputDistance) -> std::tuple<SegmentsPtrHandler, PreComputeMetrics, bool>{
         const float validatedInputDistance = std::max(0.0f, inputDistance);
         const size_t segmentCount = configs.size();
 
@@ -293,7 +293,7 @@ export namespace ufox::geometry::discadelta {
      * - Base value is clamped between the minimum and maximum.
      * - Compression and expansion ratios are non-negative.
      */
-    constexpr SegmentConfig MakeConfig(
+    constexpr Configuration MakeConfig(
         std::string name,
         float rawBase,
         float rawCompressRatio = 1.0f,
@@ -302,7 +302,7 @@ export namespace ufox::geometry::discadelta {
         float rawMax = std::numeric_limits<float>::max(),
         size_t rawOrder = 0
     ) noexcept {
-        SegmentConfig config;
+        Configuration config;
 
         config.name = std::move(name);
         config.order = rawOrder;
@@ -344,7 +344,7 @@ export namespace ufox::geometry::discadelta {
      * This function provides a convenient way to initialize a `SegmentConfig` with lightweight
      * input arguments, ensuring valid parameter conversion and delegation.
      */
-    SegmentConfig MakeConfig(
+    Configuration MakeConfig(
         const char* name,
         float rawBase,
         float rawCompressRatio = 1.0f,
