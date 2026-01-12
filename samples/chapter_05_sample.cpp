@@ -7,34 +7,40 @@ import ufox_discadelta_core;
 
 using namespace ufox::geometry::discadelta;
 
-void DebugPrintNesterTree(const NestedSegment& root, const std::string& title = "Nester Tree Debug") {
+void DebugPrintNesterTree(const NestedSegmentContext& root, const std::string& title = "Nester Tree Debug") {
     std::cout << "=== " << title << " ===\n";
     std::cout << std::format("Root: \"{}\" | Depth: {} | OwnBase: {:.1f} | OwnMin: {:.1f} | "
-                             "AccumBase: {:.1f} | AccumMin: {:.1f} | "
+                             "AccumBase: {:.1f} | AccumMin: {:.1f} | Accumulate Ratio: {:.4f} | Solidify: {:.4f} | Capacity: {:.4f} |"
                              "GreaterBase: {:.1f} | GreaterMin: {:.1f}\n\n",
                              root.config.name ,
                              root.GetDepth(),
-                             root.GetBase(),
-                             root.GetMin(),
+                             root.GetValidatedBase(),
+                             root.GetValidatedMin(),
                              root.GetAccumulateBase(),
-                             root.GetAccumulateMin(),  // direct access since private, but debugger is friend or external
+                             root.GetAccumulateMin(),
+                             root.GetAccumulateExpandRatio(),
+                             root.GetCompressSolidify(),
+                             root.GetCompressCapacity(),
                              root.GetGreaterBase(),
                              root.GetGreaterMin());
 
     // Recursive lambda to print subtree
-    std::function<void(const NestedSegment&, int)> printSubtree = [&](const NestedSegment& node, int indentLevel) {
+    std::function<void(const NestedSegmentContext&, int)> printSubtree = [&](const NestedSegmentContext& node, int indentLevel) {
         std::string indent(indentLevel * 2, ' ');
 
-        for (const NestedSegment* child : node.GetChildren()) {
-            std::cout << std::format("{} | Depth: {} | OwnBase: {:.1f} | OwnMin: {:.1f} | "
-                                     "AccumBase: {:.1f} | AccumMin: {:.1f} | "
-                                     "GreaterBase: {:.1f} | GreaterMin: {:.1f}\n",
+        for (const NestedSegmentContext* child : node.GetChildren()) {
+            std::cout << std::format("{} | Depth: {} | OwnBase: {:.4f} | OwnMin: {:.4f} | "
+                                     "AccumBase: {:.4f} | AccumMin: {:.4f} | Accumulate Ratio: {:.4f} | Solidify: {:.4f} | Capacity: {:.4f} |"
+                                     "GreaterBase: {:.4f} | GreaterMin: {:.4f}\n",
                                      child->config.name ,
                                      child->GetDepth(),
-                                     child->GetBase(),
-                                     child->GetMin(),
+                                     child->GetValidatedBase(),
+                                     child->GetValidatedMin(),
                                      child->GetAccumulateBase(),
                                      child->GetAccumulateMin(),
+                                     child->GetAccumulateExpandRatio(),
+                                     child->GetCompressSolidify(),
+                                     child->GetCompressCapacity(),
                                      child->GetGreaterBase(),
                                      child->GetGreaterMin());
 
@@ -49,65 +55,43 @@ void DebugPrintNesterTree(const NestedSegment& root, const std::string& title = 
 int main() {
     std::cout << "Nester Tree Debugger Test\n\n";
 
-    NestedSegment root{{"Root",     0.0f, 1.0f, 1.0f, 0.0f, 2000.0f}};
-    NestedSegment panelA{{"PanelA",    100.0f, 0.5f, 0.5f, 50.0f, 300.0f}};
-    NestedSegment subA1{{"SubA1",     80.0f,   0.2f, 0.4f, 40.0f, 150.0f}};
-    NestedSegment subA1_1{{"SubA1-1",    90.0f,    0.1f, 0.2f, 60.0f, 120.0f}};
-    NestedSegment subA2{{"SubA2",     90.0f,    0.2f, 0.4f, 100.0f, 200.0f}};
-    NestedSegment panelB{{"PanelB",    200.0f,    0.3f, 0.8f, 150.0f, 400.0f}};
+    NestedSegmentContext root{{"Root",     0.0f, 1.0f, 1.0f, 0.0f, std::numeric_limits<float>::max()}};
+    NestedSegmentContext panelA{{"PanelA",    200.0f, 0.7f, 0.1f, 0.0f, std::numeric_limits<float>::max()}};
+    NestedSegmentContext subA1{{"SubA1",     80.0f,   0.2f, 0.4f, 40.0f, 150.0f}};
+    NestedSegmentContext subA1_1{{"SubA1-1",    90.0f,    0.1f, 0.2f, 60.0f, 120.0f}};
+    NestedSegmentContext subA2{{"SubA2",     90.0f,    0.2f, 0.4f, 100.0f, 200.0f}};
+    NestedSegmentContext panelB{{"PanelB",    350.0f,    0.3f, 0.5f, 0.0f, 255.0f}};
 
     panelA.Link(&root);
     subA1.Link(&panelA);
-    subA1_1.Link(&subA1);
+    //subA1_1.Link(&subA1);
     subA2.Link(&panelA);
     panelB.Link(&root);
 
-    // Full tree debug
-    DebugPrintNesterTree(root, "Final Tree State");
+    ComputeSegmentsSize(root, 400);
+
+    std::cout << "=== Nester Tree Debug ===\n";
+    std::cout << root.GetName() << " | " <<  root.content.distance << std::endl ;
+    std::cout << panelA.GetName() << " | " <<  panelA.content.distance << std::endl ;
+    std::cout << panelB.GetName() << " | " <<  panelB.content.distance << std::endl ;
+    std::cout << subA1.GetName() << " | " <<  subA1.content.distance << std::endl ;
+    std::cout << subA2.GetName() << " | " <<  subA2.content.distance << std::endl ;
+
 
     std::this_thread::sleep_for(std::chrono::seconds(2));
-    // Test reparenting
-    std::cout << "Reparenting SubA1 to Root...\n";
-    subA1.Link(&root);
 
-    std::cout << "GetChildren:\n";
+    ComputeSegmentsSize(root, 600);
 
-    const std::vector<NestedSegment*> getMe = root.GetChildren();
+    std::cout << "=== Nester Tree Debug ===\n";
+    std::cout << root.GetName() << " | " <<  root.content.distance << std::endl ;
+    std::cout << panelA.GetName() << " | " <<  panelA.content.distance << std::endl ;
+    std::cout << panelB.GetName() << " | " <<  panelB.content.distance << std::endl ;
+    std::cout << subA1.GetName() << " | " <<  subA1.content.distance << std::endl ;
+    std::cout << subA2.GetName() << " | " <<  subA2.content.distance << std::endl ;
 
-    for (const NestedSegment* child : getMe) {
-        std::cout << child->config.name << "\n";
-    }
 
-    DebugPrintNesterTree(root, "After Reparenting SubA1 to Root");
-    std::this_thread::sleep_for(std::chrono::seconds(2));
-    // Test unlink
-    std::cout << "Unlinking PanelB...\n";
-    panelB.Unlink();
-
-    DebugPrintNesterTree(root, "After Unlinking PanelB");
     std::this_thread::sleep_for(std::chrono::seconds(2));
 
-    std::cout << "subA1_1 root: " << subA1_1.GetRoot()->config.name << "\n";
 
-    subA1_1.Unlink();
-
-    std::cout << "subA1_1 root: " << subA1_1.GetRoot()->config.name << "\n";
-    std::this_thread::sleep_for(std::chrono::seconds(2));
-
-    std::cout << "Clearing Root...\n";
-
-    root.Clear();
-
-
-    std::cout << "GetChildren:\n";
-
-    const std::vector<NestedSegment*> getMe2 = root.GetChildren();
-
-    for (const NestedSegment* child : getMe2) {
-        std::cout << child->config.name << "\n";
-    }
-
-
-    std::cout << "Done!\n";
     return 0;
 }

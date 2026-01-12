@@ -8,6 +8,7 @@ module;
 #include <utility>
 #include <vector>
 #include <algorithm>
+#include <limits>
 #include <ranges>
 #include <unordered_map>
 
@@ -70,107 +71,180 @@ export namespace ufox::geometry::discadelta {
         }
     };
 
-    struct NestedSegment {
+    struct NestedSegmentContext {
         Configuration config{};
         Segment content{};
-        PreComputeMetrics preComputeMetrics{};
-        NestedSegment() = default;
-        ~NestedSegment() = default;
 
-        explicit NestedSegment(Configuration  config) : config(std::move(config)) { ValidatingConfig();}
+        NestedSegmentContext() = default;
+        ~NestedSegmentContext(){
+            Clear();
+            Unlink();
+        }
 
-        [[nodiscard]] float GetBase() const noexcept { return base; }
+        explicit NestedSegmentContext(Configuration  config) : config(std::move(config)) { UpdateContext();}
 
-        [[nodiscard]] float GetMin() const noexcept { return min; }
+        [[nodiscard]] std::string GetName() const noexcept { return config.name; }
 
-        [[nodiscard]] float GetGreaterBase() const noexcept { return std::max(accumulateBaseDistance, base); }
+        [[nodiscard]] constexpr  float GetValidatedBase() const noexcept { return validatedBase; }
 
-        [[nodiscard]] float GetGreaterMin() const noexcept { return std::max(accumulateMin, min); }
+        [[nodiscard]] constexpr  float GetValidatedMin() const noexcept { return validatedMin; }
 
-        [[nodiscard]] uint32_t GetDepth() const noexcept { return depth; }
+        [[nodiscard]] constexpr  float GetValidateMax() const noexcept { return validateMax; }
 
-        void ValidatingConfig() noexcept {
+        [[nodiscard]] constexpr  float GetCompressRatio() const noexcept { return compressRatio; }
+
+        [[nodiscard]] constexpr  float GetExpandRatio() const noexcept { return expandRatio; }
+
+        [[nodiscard]] constexpr  float GetCompressCapacity() const noexcept { return compressCapacity; }
+
+        [[nodiscard]] constexpr  float GetCompressSolidify() const noexcept { return compressSolidify; }
+
+        [[nodiscard]] constexpr  float GetGreaterBase() const noexcept {return std::max(accumulateBaseDistance, config.base);}
+
+        [[nodiscard]] constexpr  float GetGreaterMin() const noexcept {
             const float minVal = std::max(0.0f, config.min);
-            max = std::max(minVal, config.max);
-            base = std::clamp(config.base, minVal, max);
+            return std::max(accumulateMin, minVal);
+        }
+
+        [[nodiscard]] constexpr  uint32_t GetDepth() const noexcept { return depth; }
+
+        [[nodiscard]] constexpr  uint32_t GetOrder() const noexcept { return order; }
+
+        [[nodiscard]] constexpr  size_t GetChildCount() const { return children.size(); }
+
+        [[nodiscard]] constexpr std::span<NestedSegmentContext* const> GetChildren() const noexcept { return children;}
+
+        [[nodiscard]] constexpr std::span<const size_t> GetCompressCascadePriorities() const noexcept { return compressCascadePriorities; }
+
+        [[nodiscard]] constexpr std::span<const size_t> GetExpandCascadePriorities() const noexcept { return expandCascadePriorities; }
+
+        [[nodiscard]] NestedSegmentContext* GetChildByName(const std::string& name) noexcept {
+            const auto it = childrenIndies.find(name);
+            return it == childrenIndies.end()? nullptr : children[it->second];
+        }
+
+        [[nodiscard]] constexpr NestedSegmentContext* GetChildByIndex(const size_t index) const noexcept { return index < children.size() ? children[index] : nullptr; }
+
+        [[nodiscard]] constexpr  float GetAccumulateBase() const noexcept { return accumulateBaseDistance; }
+
+        [[nodiscard]] constexpr  float GetAccumulateMin() const noexcept { return accumulateMin; }
+
+        [[nodiscard]] constexpr  float GetAccumulateCompressSolidify() const noexcept { return accumulateCompressSolidify; }
+
+        [[nodiscard]] constexpr  float GetAccumulateExpandRatio() const noexcept { return accumulateExpandRatio; }
+
+
+        [[nodiscard]] const NestedSegmentContext* GetRoot() const noexcept {
+            return parent == nullptr || depth == 0 ? this : parent->GetRoot();
+        }
+
+        void UpdateContext() noexcept {
+            validatedMin = GetGreaterMin();
+            validateMax = std::max(validatedMin, config.max);
+            validatedBase = std::clamp(GetGreaterBase(), validatedMin, validateMax);
+            order = config.order;
 
             compressRatio = std::max(0.0f, config.compressRatio);
             expandRatio   = std::max(0.0f, config.expandRatio);
-            compressCapacity = base * compressRatio;
-            compressSolidify = std::max (0.0f, base - compressCapacity);
 
-            min = std::max(compressSolidify, minVal);
+            compressCapacity = validatedBase * compressRatio;
+            compressSolidify = std::max (0.0f, validatedBase - compressCapacity);
+
+            validatedMin = std::max(compressSolidify, validatedMin);
+
+            compressCascadePriorities.clear();
+            expandCascadePriorities.clear();
+            compressCascadePriorities.reserve(children.size());
+            expandCascadePriorities.reserve(children.size());
+
+            childrenIndies.clear();
+            accumulateCompressSolidify = 0.0f;
+            accumulateExpandRatio = 0.0f;
+
+            float compressPriorityLowestValue = std::numeric_limits<float>::max();
+            float expandPriorityLowestValue{0.0f};
+
+            for (size_t i = 0; i < children.size(); ++i) {
+                auto& child = children[i];
+                const float cMin = child->GetValidatedMin();
+                const float cBase = child->GetValidatedBase();
+                const float compressPriorityValue = std::max(0.0f, cBase - cMin);
+
+                if (compressPriorityValue <= compressPriorityLowestValue) {
+                    compressCascadePriorities.insert(compressCascadePriorities.begin(), i);
+                    compressPriorityLowestValue = compressPriorityValue;
+                } else {
+                    compressCascadePriorities.push_back(i);
+                }
+
+                const float expandPriorityValue = std::max(0.0f, child->GetValidateMax() - cBase);
+                if (expandPriorityValue >= expandPriorityLowestValue) {
+                    expandCascadePriorities.push_back(i);
+                    expandPriorityLowestValue = expandPriorityValue;
+                }
+                else {
+                    expandCascadePriorities.insert(expandCascadePriorities.begin(), i);
+                }
+
+                childrenIndies[child->GetName()] = i;
+                accumulateCompressSolidify += child->GetCompressSolidify();
+                accumulateExpandRatio += child->GetExpandRatio();
+            }
+
+            content.name = config.name;
+            content.order = order;
+            content.base = validatedBase;
+            content.distance = validatedBase;
+            content.expandDelta = 0.0f;
         }
 
-
-        void Link(NestedSegment* new_parent) noexcept {
+        void Link(NestedSegmentContext* new_parent) noexcept {
             if (!new_parent || new_parent == this) return;
-
             Unlink();
-
-            new_parent->children[config.name] = this;
+            new_parent->children.push_back(this);
             parent = new_parent;
+
             UpdateDepth();
-
-
-            RefreshAccumulateBaseDistance(depth, GetGreaterBase(), GetAccumulateMin(), true);
-
-            root = parent->GetRoot();
+            RefreshAccumulateBaseDistance(depth, validatedBase, validatedMin, true);
+            parent->UpdateContext();
         }
 
         void Unlink() noexcept {
             if (parent == nullptr) return;
 
-            parent->children.erase(config.name);
+            const auto it = std::ranges::find(parent->children, this);
+            if (it == parent->children.end()) return;
 
-            const float minVal = std::max(0.0f, config.min);
-            const float maxVal = std::max(minVal, config.max);
-            const float baseVal = std::clamp(config.base, minVal, maxVal);
+            parent->children.erase(it);
 
-            const float greaterBase = std::max(accumulateBaseDistance, baseVal);
-            const float greaterMin = std::max(accumulateMin, minVal);
-
-            RefreshAccumulateBaseDistance(depth, greaterBase, greaterMin, false);
+            RefreshAccumulateBaseDistance(depth, validatedBase, validatedMin, false);
+            parent->UpdateContext();
             parent = nullptr;
+
             UpdateDepth();
-            root = this;
         }
 
         void Clear() noexcept {
             while (!children.empty()) {
-                auto it = children.begin();
-                it->second->Unlink();  // Safe: Unlink removes itself from parent map
+                auto& it = *children.begin();
+                it->Unlink();
             }
+            Unlink();
+            childrenIndies.clear();
+            compressCascadePriorities.clear();
+            expandCascadePriorities.clear();
         }
-
-        [[nodiscard]] std::vector<NestedSegment*> GetChildren() const noexcept {
-            std::vector<NestedSegment*> result;
-            result.reserve(children.size());
-            for (const auto &val: children | std::views::values) {
-                result.push_back(val);
-            }
-            return result;
-        }
-
-        [[nodiscard]] NestedSegment* GetChildByName(const std::string& name) noexcept {
-            const auto it = children.find(name);
-            return it != children.end() ? it->second : nullptr;
-        }
-
-        [[nodiscard]] float GetAccumulateBase() const noexcept { return accumulateBaseDistance; }
-
-        [[nodiscard]] float GetAccumulateMin() const noexcept { return accumulateMin; }
-
-        [[nodiscard]] const NestedSegment* GetRoot() const noexcept { return root; }
 
     private:
-        NestedSegment* parent{nullptr};
-        std::unordered_map<std::string, NestedSegment*> children;
-        uint32_t depth{0};
+        NestedSegmentContext* parent{nullptr};
+        std::vector<NestedSegmentContext*> children;
+        std::unordered_map<std::string, size_t> childrenIndies;
+        size_t depth{0};
+        size_t order{0};
 
-        float min{0.0f};
-        float max{0.0f};
-        float base{0.0f};
+        float validatedMin{0.0f};
+        float validateMax{0.0f};
+        float validatedBase{0.0f};
         float compressRatio{0.0f};
         float expandRatio{0.0f};
         float compressCapacity{0.0f};
@@ -178,22 +252,23 @@ export namespace ufox::geometry::discadelta {
 
         float accumulateBaseDistance{0.0f};
         float accumulateMin{0.0f};
+        float accumulateCompressSolidify{0.0f};
         float accumulateExpandRatio{0.0f};
 
-        mutable const NestedSegment* root{this};
-
+        std::vector<size_t> compressCascadePriorities;
+        std::vector<size_t> expandCascadePriorities;
 
         void UpdateDepth() noexcept {
             depth = parent ? parent->depth + 1 : 0;
 
-            for (const auto &val: children | std::views::values) {
+            for (const auto &val: children ) {
                 val->UpdateDepth();
             }
-
         }
 
         void RefreshAccumulateBaseDistance(const uint32_t& currentDepth, const float& base, const float& min, const bool& isLink) const noexcept {
             if (parent == nullptr || currentDepth <= 0) return;
+
             //Parent may have a different greater base, so we withdraw old greater base from parent's parent
             parent->RefreshAccumulateBaseDistance(parent->depth, parent->GetGreaterBase(), parent->GetGreaterMin(), false);
             //new accumulate mean Greater Base can be different
@@ -210,9 +285,7 @@ export namespace ufox::geometry::discadelta {
             parent->RefreshAccumulateBaseDistance(parent->depth, parent->GetGreaterBase(), parent->GetGreaterMin(), true); //keep go 1 level down till it reaches 1, b-b-but current is over 9000, don't care.
         }
 
-
-
-        friend NestedSegment;
+        friend NestedSegmentContext;
     };
 
     using SegmentsPtrHandler = std::vector<std::unique_ptr<Segment>>;

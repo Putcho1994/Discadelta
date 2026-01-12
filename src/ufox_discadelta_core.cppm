@@ -11,6 +11,7 @@ module;
 #include <ranges>
 #include <format>
 #include <iomanip>     // if needed
+#include <iostream>
 
 export module ufox_discadelta_core;
 
@@ -222,6 +223,99 @@ export namespace ufox::geometry::discadelta {
             cascadeExpandRatio -= ratio;
         }
     }
+
+    constexpr std::pair<float, bool> ValidateInputDistance(const float& value, const float& validatedMin, const float& accumulateBase) noexcept {
+        const float validatedInputDistance = std::max(validatedMin, value);
+        return std::make_pair(validatedInputDistance, validatedInputDistance < accumulateBase);
+    }
+
+    constexpr std::tuple<float,float,float, std::span<const size_t>>
+    MakeCompressCascadeMetrics(const float& input,const NestedSegmentContext& ctx ) noexcept {
+        return std::make_tuple(
+            input, ctx.GetAccumulateBase(),
+            ctx.GetAccumulateCompressSolidify(),
+            ctx.GetCompressCascadePriorities());
+    }
+
+    constexpr std::tuple<const float,const float,const float,const float,const float,const float>
+    MakeCompressSizeMetrics(const float& cascadeCompressDistance, const float&cascadeBaseDistance, const float& cascadeCompressSolidify, const NestedSegmentContext& ctx) noexcept {
+        return std::make_tuple(
+            cascadeCompressDistance - cascadeCompressSolidify,
+            cascadeBaseDistance - cascadeCompressSolidify,
+            ctx.GetCompressSolidify(),
+            ctx.GetCompressCapacity(),
+            ctx.GetValidatedMin(),
+            ctx.GetValidatedBase());
+    }
+
+    constexpr std::tuple<const bool,float,float, std::span<const size_t>>
+    MakeExpandCascadeMetrics(const float& value, const NestedSegmentContext& ctx) {
+        const float cascadeExpandDelta = std::max(value - ctx.GetAccumulateBase(), 0.0f);
+
+        return std::make_tuple(cascadeExpandDelta > 0.0f,cascadeExpandDelta, ctx.GetAccumulateExpandRatio(), ctx.GetExpandCascadePriorities());
+    }
+
+    constexpr std::tuple<const float, const float,const float>
+    MakeExpandSizeMetrics(const NestedSegmentContext& ctx) {
+        const float base = ctx.GetValidatedBase();
+        return std::make_tuple(base, ctx.GetExpandRatio(), std::max(0.0f, ctx.GetValidateMax() - base));
+    }
+
+    void ComputeSegmentsSize(NestedSegmentContext& ctx, const float& value, const float& delta = 0.0f);
+
+    void Compressing(const NestedSegmentContext& ctx, const float& inputDistance) noexcept {
+        auto [cascadeCompressDistance, cascadeBaseDistance, cascadeCompressSolidify, priorityList] = MakeCompressCascadeMetrics(inputDistance, ctx);
+
+        for (const auto index : priorityList) {
+            NestedSegmentContext* childCtx = ctx.GetChildByIndex(index);
+            if (childCtx == nullptr) continue;
+            auto [remainDist, remainCap, solidify, capacity, validatedMin, greaterBase] =
+                MakeCompressSizeMetrics(cascadeCompressDistance, cascadeBaseDistance, cascadeCompressSolidify, *childCtx);
+            const float compressBaseDistance = Scaler(remainDist, remainCap, capacity) + solidify;
+            const float clampedDist = std::max(compressBaseDistance, validatedMin);
+
+            ComputeSegmentsSize(*childCtx, clampedDist);
+
+            cascadeCompressDistance -= clampedDist;
+            cascadeCompressSolidify -= solidify;
+            cascadeBaseDistance -= greaterBase;
+        }
+    }
+
+    void Expanding(const NestedSegmentContext& ctx, const float& inputDistance) {
+        auto [processingExpansion,cascadeExpandDelta, cascadeExpandRatio, priorityList] = MakeExpandCascadeMetrics(inputDistance, ctx);
+        if (!processingExpansion) return;
+
+        for (const auto index : priorityList) {
+            NestedSegmentContext* childCtx = ctx.GetChildByIndex(index);
+            if (childCtx == nullptr) continue;
+
+            auto [validateBase, expandRatio, maxDelta] = MakeExpandSizeMetrics(*childCtx);
+            const float expandDelta = Scaler(cascadeExpandDelta, cascadeExpandRatio, expandRatio);
+            const float clampedDelta = std::min(expandDelta, maxDelta);
+
+            ComputeSegmentsSize(*childCtx, validateBase, clampedDelta );
+
+            cascadeExpandDelta -= clampedDelta;
+            cascadeExpandRatio -= expandRatio;
+        }
+    }
+
+    void ComputeSegmentsSize(NestedSegmentContext& ctx, const float& value, const float& delta) {
+        const auto [validatedInputDistance, processingCompression] = ValidateInputDistance(value, ctx.GetValidatedMin(), ctx.GetAccumulateBase());
+
+        ctx.content.base  = validatedInputDistance;
+        ctx.content.expandDelta = delta;
+        ctx.content.distance = validatedInputDistance + delta;
+
+        if (processingCompression) {
+            Compressing(ctx, ctx.content.distance);
+        }
+        else {
+            Expanding(ctx, ctx.content.distance);
+        }
+    }
+
 
     /**
      * Adjusts the placement of segments by sorting them based on their processing order
