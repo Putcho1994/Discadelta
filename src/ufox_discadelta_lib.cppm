@@ -34,8 +34,6 @@ export namespace ufox::geometry::discadelta {
         float min{0.0f};
         float max{0.0f};
         size_t order;
-        bool enablePreConstraint;
-        bool enableExpandCapacity;
     };
 
     struct PreComputeMetrics {

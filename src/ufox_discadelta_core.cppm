@@ -286,7 +286,6 @@ export namespace ufox::geometry::discadelta {
         auto [processingExpansion,cascadeExpandDelta, cascadeExpandRatio, priorityList] = MakeExpandCascadeMetrics(inputDistance, ctx);
         if (!processingExpansion) return;
 
-        float capacity = ctx.config.enableExpandCapacity ? inputDistance / priorityList.size() : inputDistance;
 
         for (const auto index : priorityList) {
             auto* childCtx = ctx.GetChildByIndex(index);
