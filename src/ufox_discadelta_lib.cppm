@@ -9,6 +9,7 @@ module;
 #include <vector>
 #include <algorithm>
 #include <limits>
+#include <numeric>
 #include <ranges>
 #include <unordered_map>
 
@@ -33,6 +34,8 @@ export namespace ufox::geometry::discadelta {
         float min{0.0f};
         float max{0.0f};
         size_t order;
+        bool enablePreConstraint;
+        bool enableExpandCapacity;
     };
 
     struct PreComputeMetrics {
@@ -106,17 +109,26 @@ export namespace ufox::geometry::discadelta {
             return std::max(accumulateMin, minVal);
         }
 
-        [[nodiscard]] constexpr  uint32_t GetDepth() const noexcept { return depth; }
+        [[nodiscard]] constexpr  size_t GetDepth() const noexcept { return depth; }
 
-        [[nodiscard]] constexpr  uint32_t GetOrder() const noexcept { return order; }
+        [[nodiscard]] constexpr  size_t GetOrder() const noexcept { return order; }
 
         [[nodiscard]] constexpr  size_t GetChildCount() const { return children.size(); }
 
-        [[nodiscard]] constexpr std::span<NestedSegmentContext* const> GetChildren() const noexcept { return children;}
+        [[nodiscard]] constexpr std::span<const NestedSegmentContext* const> GetChildren() const noexcept { return children;}
 
         [[nodiscard]] constexpr std::span<const size_t> GetCompressCascadePriorities() const noexcept { return compressCascadePriorities; }
 
         [[nodiscard]] constexpr std::span<const size_t> GetExpandCascadePriorities() const noexcept { return expandCascadePriorities; }
+
+        [[nodiscard]] std::vector<size_t> GetOrderedChildrenIndices() const noexcept {
+            std::vector<size_t> indices(children.size());
+            std::iota(indices.begin(), indices.end(), size_t{0});
+
+            std::ranges::sort(indices,[this](const size_t a, const size_t b) noexcept {return children[a]->GetOrder() < children[b]->GetOrder();});
+
+            return indices;
+        }
 
         [[nodiscard]] NestedSegmentContext* GetChildByName(const std::string& name) noexcept {
             const auto it = childrenIndies.find(name);

@@ -261,20 +261,20 @@ export namespace ufox::geometry::discadelta {
         return std::make_tuple(base, ctx.GetExpandRatio(), std::max(0.0f, ctx.GetValidateMax() - base));
     }
 
-    void ComputeSegmentsSize(NestedSegmentContext& ctx, const float& value, const float& delta = 0.0f);
+    void Sizing(NestedSegmentContext& ctx, const float& value, const float& delta = 0.0f);
 
     void Compressing(const NestedSegmentContext& ctx, const float& inputDistance) noexcept {
         auto [cascadeCompressDistance, cascadeBaseDistance, cascadeCompressSolidify, priorityList] = MakeCompressCascadeMetrics(inputDistance, ctx);
 
         for (const auto index : priorityList) {
-            NestedSegmentContext* childCtx = ctx.GetChildByIndex(index);
+            auto* childCtx = ctx.GetChildByIndex(index);
             if (childCtx == nullptr) continue;
             auto [remainDist, remainCap, solidify, capacity, validatedMin, greaterBase] =
                 MakeCompressSizeMetrics(cascadeCompressDistance, cascadeBaseDistance, cascadeCompressSolidify, *childCtx);
             const float compressBaseDistance = Scaler(remainDist, remainCap, capacity) + solidify;
             const float clampedDist = std::max(compressBaseDistance, validatedMin);
 
-            ComputeSegmentsSize(*childCtx, clampedDist);
+            Sizing(*childCtx, clampedDist);
 
             cascadeCompressDistance -= clampedDist;
             cascadeCompressSolidify -= solidify;
@@ -286,22 +286,24 @@ export namespace ufox::geometry::discadelta {
         auto [processingExpansion,cascadeExpandDelta, cascadeExpandRatio, priorityList] = MakeExpandCascadeMetrics(inputDistance, ctx);
         if (!processingExpansion) return;
 
+        float capacity = ctx.config.enableExpandCapacity ? inputDistance / priorityList.size() : inputDistance;
+
         for (const auto index : priorityList) {
-            NestedSegmentContext* childCtx = ctx.GetChildByIndex(index);
+            auto* childCtx = ctx.GetChildByIndex(index);
             if (childCtx == nullptr) continue;
 
             auto [validateBase, expandRatio, maxDelta] = MakeExpandSizeMetrics(*childCtx);
             const float expandDelta = Scaler(cascadeExpandDelta, cascadeExpandRatio, expandRatio);
             const float clampedDelta = std::min(expandDelta, maxDelta);
 
-            ComputeSegmentsSize(*childCtx, validateBase, clampedDelta );
+            Sizing(*childCtx, validateBase, clampedDelta );
 
             cascadeExpandDelta -= clampedDelta;
             cascadeExpandRatio -= expandRatio;
         }
     }
 
-    void ComputeSegmentsSize(NestedSegmentContext& ctx, const float& value, const float& delta) {
+    void Sizing(NestedSegmentContext& ctx, const float& value, const float& delta) {
         const auto [validatedInputDistance, processingCompression] = ValidateInputDistance(value, ctx.GetValidatedMin(), ctx.GetAccumulateBase());
 
         ctx.content.base  = validatedInputDistance;
@@ -313,6 +315,21 @@ export namespace ufox::geometry::discadelta {
         }
         else {
             Expanding(ctx, ctx.content.distance);
+        }
+    }
+
+    void Placing(NestedSegmentContext& ctx, const float& parentOffset = 0.0f) noexcept {
+        ctx.content.offset = parentOffset;
+        if (ctx.GetChildCount() == 0) return;
+
+        auto indices = ctx.GetOrderedChildrenIndices();
+
+        float currentOffset = parentOffset;
+        for (size_t idx : indices) {
+            auto* childCtx = ctx.GetChildByIndex(idx);
+            if (childCtx == nullptr) continue;
+            Placing(*childCtx, currentOffset);
+            currentOffset += childCtx->content.distance;
         }
     }
 

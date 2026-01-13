@@ -52,15 +52,34 @@ void DebugPrintNesterTree(const NestedSegmentContext& root, const std::string& t
     std::cout << "\n";
 }
 
+void PrintTreeDebugWithOffset(const NestedSegmentContext& ctx, int indent = 0) noexcept {
+
+    std::string pad(indent * 4, ' ');
+    std::cout << pad << ctx.GetName()
+              << " [d:" << ctx.GetDepth() << "]"
+              << " | offset:" << ctx.content.offset
+              << " | end:" << (ctx.content.offset + ctx.content.distance)
+              << " | size:" << ctx.content.distance
+              << " | expΔ:" << ctx.content.expandDelta
+              << " | vBase:" << ctx.GetValidatedBase()
+              << "\n";
+
+    for (auto* child : ctx.GetChildren()) {
+        PrintTreeDebugWithOffset(*child, indent + 1);
+    }
+}
+
 int main() {
     std::cout << "Nester Tree Debugger Test\n\n";
 
+    const std::string title = "Nester Tree Debug";
+
     NestedSegmentContext root{{"Root",     0.0f, 1.0f, 1.0f, 0.0f, std::numeric_limits<float>::max()}};
-    NestedSegmentContext panelA{{"PanelA",    200.0f, 0.7f, 0.1f, 0.0f, std::numeric_limits<float>::max()}};
+    NestedSegmentContext panelA{{"PanelA",    200.0f, 0.7f, 0.1f, 0.0f, std::numeric_limits<float>::max(),1}};
     NestedSegmentContext subA1{{"SubA1",     80.0f,   0.2f, 0.4f, 40.0f, 150.0f}};
     NestedSegmentContext subA1_1{{"SubA1-1",    90.0f,    0.1f, 0.2f, 60.0f, 120.0f}};
     NestedSegmentContext subA2{{"SubA2",     90.0f,    0.2f, 0.4f, 100.0f, 200.0f}};
-    NestedSegmentContext panelB{{"PanelB",    350.0f,    0.3f, 0.5f, 0.0f, 255.0f}};
+    NestedSegmentContext panelB{{"PanelB",    350.0f,    0.3f, 0.5f, 0.0f, 255.0f,0}};
 
     panelA.Link(&root);
     subA1.Link(&panelA);
@@ -68,30 +87,23 @@ int main() {
     subA2.Link(&panelA);
     panelB.Link(&root);
 
-    ComputeSegmentsSize(root, 400);
+    Sizing(root, 400);
 
-    std::cout << "=== Nester Tree Debug ===\n";
-    std::cout << root.GetName() << " | " <<  root.content.distance << std::endl ;
-    std::cout << panelA.GetName() << " | " <<  panelA.content.distance << std::endl ;
-    std::cout << panelB.GetName() << " | " <<  panelB.content.distance << std::endl ;
-    std::cout << subA1.GetName() << " | " <<  subA1.content.distance << std::endl ;
-    std::cout << subA2.GetName() << " | " <<  subA2.content.distance << std::endl ;
+    Placing(root);
 
+    std::cout << "=== " << title << " ===" << std::endl;
+    PrintTreeDebugWithOffset(root);
 
     std::this_thread::sleep_for(std::chrono::seconds(2));
 
-    ComputeSegmentsSize(root, 600);
+    Sizing(root, 600);
 
-    std::cout << "=== Nester Tree Debug ===\n";
-    std::cout << root.GetName() << " | " <<  root.content.distance << std::endl ;
-    std::cout << panelA.GetName() << " | " <<  panelA.content.distance << std::endl ;
-    std::cout << panelB.GetName() << " | " <<  panelB.content.distance << std::endl ;
-    std::cout << subA1.GetName() << " | " <<  subA1.content.distance << std::endl ;
-    std::cout << subA2.GetName() << " | " <<  subA2.content.distance << std::endl ;
+    Placing(root);
 
+    std::cout << "=== " << title << " ===" << std::endl;
+    PrintTreeDebugWithOffset(root);
 
     std::this_thread::sleep_for(std::chrono::seconds(2));
-
 
     return 0;
 }
