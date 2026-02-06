@@ -22,7 +22,7 @@ export namespace ufox::geometry::discadelta {
     void Sizing(LinearSegmentContext& ctx, const float& value, const float& delta = 0.0f);
     void Sizing(RectSegmentContext& ctx, const float& width, const float& height, const float& widthDelta = 0.0f, const float& heightDelta = 0.0f);
 
-    constexpr void UpdateAccumulatedMetrics(RectSegmentContext& ctx) noexcept {
+    void UpdateAccumulatedMetrics(RectSegmentContext& ctx) noexcept {
             ctx.accumulatedWidthBase = 0.0f;
             ctx.accumulatedHeightBase = 0.0f;
 
