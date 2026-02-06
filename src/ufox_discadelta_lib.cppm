@@ -8,6 +8,7 @@ module;
 #include <utility>
 #include <vector>
 #include <algorithm>
+#include <cmath>
 #include <limits>
 #include <numeric>
 #include <ranges>
@@ -15,9 +16,42 @@ module;
 
 export module ufox_discadelta_lib;
 
-
 export namespace ufox::geometry::discadelta {
-    struct Segment {
+    enum class FlexDirection {
+        Column,
+        Row,
+    };
+
+    enum class LengthUnitType : uint8_t {
+        Auto,
+        Flat,
+        Percent
+    };
+
+    struct Length {
+        LengthUnitType type{LengthUnitType::Flat};
+        float value{0.0f};
+
+        constexpr Length() noexcept = default;
+        constexpr Length(const LengthUnitType t, const float v) noexcept : type(t), value(v) {}
+
+        friend constexpr Length operator""_flat(unsigned long long v) noexcept { return {LengthUnitType::Flat, static_cast<float>(v)}; }
+        friend constexpr Length operator""_flat(long double v) noexcept { return {LengthUnitType::Flat, static_cast<float>(v)}; }
+        friend constexpr Length operator""_pct(unsigned long long v) noexcept { return {LengthUnitType::Percent, static_cast<float>(v)}; }
+        friend constexpr Length operator""_pct(long double v) noexcept { return {LengthUnitType::Percent, static_cast<float>(v)}; }
+        friend constexpr Length operator""_auto(unsigned long long) noexcept { return {LengthUnitType::Auto, 0.0f}; }
+
+        [[nodiscard]] constexpr float resolve(const float parentSize, const float autoFallback = 0.0f) const noexcept {
+            switch (type) {
+                case LengthUnitType::Auto:    return autoFallback;
+                case LengthUnitType::Flat:    return value;
+                case LengthUnitType::Percent: return parentSize * (value / 100.0f);
+            }
+            return 0.0f;
+        }
+    };
+
+    struct LinearSegment {
         std::string name{"none"};
         float base{0.0f};
         float expandDelta{0.0f};
@@ -26,7 +60,7 @@ export namespace ufox::geometry::discadelta {
         size_t order;
     };
 
-    struct Configuration {
+    struct LinearSegmentCreateInfo {
         std::string name{"none"};
         float base{0.0f};
         float compressRatio{0.0f};
@@ -36,53 +70,61 @@ export namespace ufox::geometry::discadelta {
         size_t order;
     };
 
-    struct PreComputeMetrics {
-        float inputDistance{};
-        std::vector<float> compressCapacities{};
-        std::vector<float> compressSolidifies{};
-        std::vector<float> baseDistances{};
-        std::vector<float> expandRatios{};
-        std::vector<float> minDistances{};
-        std::vector<float> maxDistances{};
+    struct RectSegment {
+        std::string name{"none"};
+        float widthBase{0.0f};
+        float heightBase{0.0f};
+        float widthExpandDelta{0.0f};
+        float heightExpandDelta{0.0f};
+        float width{0.0f};
+        float height{0.0f};
+        float x{0.0f};
+        float y{0.0f};
+        size_t order{0};
 
-        float accumulateBaseDistance{0.0f};
-        float accumulateCompressSolidify{0.0f};
-        float accumulateExpandRatio{0.0f};
+        RectSegment() = default;
+        ~RectSegment() = default;
 
-        // NEW: Non-owning pointers — safe because ownedSegments outlives metrics
-        std::vector<Segment*> segments;
-
-        std::vector<size_t> compressPriorityIndies;
-        std::vector<size_t> expandPriorityIndies;
-
-        PreComputeMetrics() = default;
-        ~PreComputeMetrics() = default;
-
-        explicit PreComputeMetrics(const size_t segmentCount, const float& rootBase) : inputDistance(rootBase) {
-            compressCapacities.reserve(segmentCount);
-            compressSolidifies.reserve(segmentCount);
-            baseDistances.reserve(segmentCount);
-            expandRatios.reserve(segmentCount);
-            minDistances.reserve(segmentCount);
-            maxDistances.reserve(segmentCount);
-            segments.reserve(segmentCount);
-
-            compressPriorityIndies.reserve(segmentCount);
-            expandPriorityIndies.reserve(segmentCount);
+        [[nodiscard]] constexpr std::pair<float,float> getSize() const noexcept { return std::make_pair(width, height); }
+        [[nodiscard]] constexpr std::pair<float,float> getOffset() const noexcept { return std::make_pair(x, y); }
+        [[nodiscard]] constexpr std::pair<uint32_t,uint32_t> getPixelSize() const noexcept {
+            return std::make_pair(static_cast<uint32_t>(std::lround(width)), static_cast<uint32_t>(std::lround(height)));
+        }
+        [[nodiscard]] constexpr std::pair<int,int> getPixelOffset() const noexcept {
+            return std::make_pair(static_cast<int>(std::lround(x)), static_cast<int>(std::lround(y)));
+        }
+        [[nodiscard]] constexpr std::tuple<float,float,float,float> getRect() const noexcept { return std::make_tuple(x, y, width, height); }
+        [[nodiscard]] constexpr std::tuple<int,int,uint32_t,uint32_t> getPixelRect() const noexcept {
+            return std::make_tuple(static_cast<int>(std::lround(x)), static_cast<int>(std::lround(y)), static_cast<uint32_t>(std::lround(width)), static_cast<uint32_t>(std::lround(height)));
         }
     };
 
-    struct NestedSegmentContext {
-        Configuration config{};
-        Segment content{};
+    struct RectSegmentCreateInfo {
+        std::string name{"none"};
+        Length width{LengthUnitType::Auto, 0.0f};
+        float widthMin{0.0f};
+        float widthMax{0.0f};
+        Length height{LengthUnitType::Auto, 0.0f};
+        float heightMin{0.0f};
+        float heightMax{0.0f};
+        FlexDirection direction{FlexDirection::Column};
+        float flexCompress{0.0f};
+        float flexExpand{0.0f};
+        size_t order{0};
 
-        NestedSegmentContext() = default;
-        ~NestedSegmentContext(){
+    };
+
+    struct LinearSegmentContext {
+        LinearSegmentCreateInfo config{};
+        LinearSegment content{};
+
+        LinearSegmentContext() = default;
+        ~LinearSegmentContext(){
             Clear();
             Unlink();
         }
 
-        explicit NestedSegmentContext(Configuration  config) : config(std::move(config)) { UpdateContext();}
+        explicit LinearSegmentContext(LinearSegmentCreateInfo  config) : config(std::move(config)) { UpdateContext();}
 
         [[nodiscard]] std::string GetName() const noexcept { return config.name; }
 
@@ -113,7 +155,7 @@ export namespace ufox::geometry::discadelta {
 
         [[nodiscard]] constexpr  size_t GetChildCount() const { return children.size(); }
 
-        [[nodiscard]] constexpr std::span<const NestedSegmentContext* const> GetChildren() const noexcept { return children;}
+        [[nodiscard]] constexpr std::span<const LinearSegmentContext* const> GetChildren() const noexcept { return children;}
 
         [[nodiscard]] constexpr std::span<const size_t> GetCompressCascadePriorities() const noexcept { return compressCascadePriorities; }
 
@@ -128,12 +170,12 @@ export namespace ufox::geometry::discadelta {
             return indices;
         }
 
-        [[nodiscard]] NestedSegmentContext* GetChildByName(const std::string& name) noexcept {
+        [[nodiscard]] LinearSegmentContext* GetChildByName(const std::string& name) noexcept {
             const auto it = childrenIndies.find(name);
             return it == childrenIndies.end()? nullptr : children[it->second];
         }
 
-        [[nodiscard]] constexpr NestedSegmentContext* GetChildByIndex(const size_t index) const noexcept { return index < children.size() ? children[index] : nullptr; }
+        [[nodiscard]] constexpr LinearSegmentContext* GetChildByIndex(const size_t index) const noexcept { return index < children.size() ? children[index] : nullptr; }
 
         [[nodiscard]] constexpr  float GetAccumulateBase() const noexcept { return accumulateBaseDistance; }
 
@@ -144,7 +186,7 @@ export namespace ufox::geometry::discadelta {
         [[nodiscard]] constexpr  float GetAccumulateExpandRatio() const noexcept { return accumulateExpandRatio; }
 
 
-        [[nodiscard]] const NestedSegmentContext* GetRoot() const noexcept {
+        [[nodiscard]] const LinearSegmentContext* GetRoot() const noexcept {
             return parent == nullptr || depth == 0 ? this : parent->GetRoot();
         }
 
@@ -208,7 +250,7 @@ export namespace ufox::geometry::discadelta {
             content.expandDelta = 0.0f;
         }
 
-        void Link(NestedSegmentContext* new_parent) noexcept {
+        void Link(LinearSegmentContext* new_parent) noexcept {
             if (!new_parent || new_parent == this) return;
             Unlink();
             new_parent->children.push_back(this);
@@ -236,7 +278,7 @@ export namespace ufox::geometry::discadelta {
 
         void Clear() noexcept {
             while (!children.empty()) {
-                auto& it = *children.begin();
+                const auto& it = *children.begin();
                 it->Unlink();
             }
             Unlink();
@@ -246,8 +288,8 @@ export namespace ufox::geometry::discadelta {
         }
 
     private:
-        NestedSegmentContext* parent{nullptr};
-        std::vector<NestedSegmentContext*> children;
+        LinearSegmentContext* parent{nullptr};
+        std::vector<LinearSegmentContext*> children;
         std::unordered_map<std::string, size_t> childrenIndies;
         size_t depth{0};
         size_t order{0};
@@ -295,8 +337,51 @@ export namespace ufox::geometry::discadelta {
             parent->RefreshAccumulateBaseDistance(parent->depth, parent->GetGreaterBase(), parent->GetGreaterMin(), true); //keep go 1 level down till it reaches 1, b-b-but current is over 9000, don't care.
         }
 
-        friend NestedSegmentContext;
+        friend LinearSegmentContext;
     };
 
-    using SegmentsPtrHandler = std::vector<std::unique_ptr<Segment>>;
+    struct RectSegmentContext {
+        RectSegmentCreateInfo               config{};
+        RectSegment                         content{};
+        RectSegmentContext* parent = nullptr;
+        std::vector<RectSegmentContext*> children;
+        std::unordered_map<std::string, size_t> childrenIndies;
+        std::vector<size_t> compressCascadePriorities;
+        std::vector<size_t> expandCascadePriorities;
+        float validatedWidthBase = 0.0f;
+        float validatedHeightBase = 0.0f;
+        float validatedWidthMin = 0.0f;
+        float validatedHeightMin = 0.0f;
+        float validatedWidthMax = 0.0f;
+        float validatedHeightMax = 0.0f;
+        float accumulatedWidthBase = 0.0f;
+        float accumulatedHeightBase = 0.0f;
+        float accumulatedWidthMin = 0.0f;
+        float accumulatedHeightMin = 0.0f;
+        float accumulatedWidthCompressSolidify = 0.0f;
+        float accumulatedHeightCompressSolidify = 0.0f;
+        float accumulatedExpandRatio = 0.0f;
+        float compressRatio = 0.0f;
+        float widthCompressCapacity = 0.0f;
+        float widthCompressSolidify = 0.0f;
+        float heightCompressCapacity = 0.0f;
+        float heightCompressSolidify = 0.0f;
+        float expandRatio = 0.0f;
+
+        explicit RectSegmentContext(RectSegmentCreateInfo  config) : config(std::move(config)) {}
+        [[nodiscard]] std::string getName() const noexcept { return config.name; }
+
+        // [[nodiscard]] constexpr float getGreaterWidthMin() const noexcept { return std::max(accumulatedWidthMin, validatedWidthMin); }
+        // [[nodiscard]] constexpr float getGreaterWidthBase() const noexcept { return std::max(accumulatedWidthBase, validatedWidthBase); }
+        // [[nodiscard]] constexpr float getGreaterHeightMin() const noexcept { return std::max(accumulatedHeightMin, validatedHeightMin); }
+        // [[nodiscard]] constexpr float getGreaterHeightBase() const noexcept { return std::max(accumulatedHeightBase, validatedHeightBase); }
+
+
+        [[nodiscard]] RectSegmentContext* getChildByName(const std::string& name) noexcept {
+            const auto it = childrenIndies.find(name);
+            return it == childrenIndies.end()? nullptr : children[it->second];
+        }
+        [[nodiscard]] constexpr RectSegmentContext* getChildByIndex(const size_t index) const noexcept { return index < children.size() ? children[index] : nullptr; }
+
+    };
 }
