@@ -1,73 +1,11 @@
 import ufox_discadelta_lib;
 import ufox_discadelta_core;
-#include <functional>
+
 #include <iostream>
 #include <thread>
-#include <vector>
+
 
 using namespace ufox::geometry::discadelta;
-
-void DebugPrintNesterTree(const LinearSegmentContext& root, const std::string& title = "Nester Tree Debug") {
-    std::cout << "=== " << title << " ===\n";
-    std::cout << std::format("Root: \"{}\" | Depth: {} | OwnBase: {:.1f} | OwnMin: {:.1f} | "
-                             "AccumBase: {:.1f} | AccumMin: {:.1f} | Accumulate Ratio: {:.4f} | Solidify: {:.4f} | Capacity: {:.4f} |"
-                             "GreaterBase: {:.1f} | GreaterMin: {:.1f}\n\n",
-                             root.config.name ,
-                             root.GetDepth(),
-                             root.GetValidatedBase(),
-                             root.GetValidatedMin(),
-                             root.GetAccumulateBase(),
-                             root.GetAccumulateMin(),
-                             root.GetAccumulateExpandRatio(),
-                             root.GetCompressSolidify(),
-                             root.GetCompressCapacity(),
-                             root.GetGreaterBase(),
-                             root.GetGreaterMin());
-
-    // Recursive lambda to print subtree
-    std::function<void(const LinearSegmentContext&, int)> printSubtree = [&](const LinearSegmentContext& node, int indentLevel) {
-        std::string indent(indentLevel * 2, ' ');
-
-        for (const LinearSegmentContext* child : node.GetChildren()) {
-            std::cout << std::format("{} | Depth: {} | OwnBase: {:.4f} | OwnMin: {:.4f} | "
-                                     "AccumBase: {:.4f} | AccumMin: {:.4f} | Accumulate Ratio: {:.4f} | Solidify: {:.4f} | Capacity: {:.4f} |"
-                                     "GreaterBase: {:.4f} | GreaterMin: {:.4f}\n",
-                                     child->config.name ,
-                                     child->GetDepth(),
-                                     child->GetValidatedBase(),
-                                     child->GetValidatedMin(),
-                                     child->GetAccumulateBase(),
-                                     child->GetAccumulateMin(),
-                                     child->GetAccumulateExpandRatio(),
-                                     child->GetCompressSolidify(),
-                                     child->GetCompressCapacity(),
-                                     child->GetGreaterBase(),
-                                     child->GetGreaterMin());
-
-            printSubtree(*child, indentLevel + 1);
-        }
-    };
-
-    printSubtree(root, 1);
-    std::cout << "\n";
-}
-
-void PrintTreeDebugWithOffset(const LinearSegmentContext& ctx, int indent = 0) noexcept {
-
-    std::string pad(indent * 4, ' ');
-    std::cout << pad << ctx.GetName()
-              << " [d:" << ctx.GetDepth() << "]"
-              << " | offset:" << ctx.content.offset
-              << " | end:" << (ctx.content.offset + ctx.content.distance)
-              << " | size:" << ctx.content.distance
-              << " | expΔ:" << ctx.content.expandDelta
-              << " | vBase:" << ctx.GetValidatedBase()
-              << "\n";
-
-    for (auto* child : ctx.GetChildren()) {
-        PrintTreeDebugWithOffset(*child, indent + 1);
-    }
-}
 
 
 void PrintTreeDebugWithOffset(const RectSegmentContext& ctx, int indent = 0) noexcept {
@@ -95,20 +33,23 @@ int main() {
     // LinearSegmentContext subA2{{"SubA2",     90.0f,    0.2f, 0.4f, 100.0f, 200.0f}};
     // LinearSegmentContext panelB{{"PanelB",    350.0f,    0.3f, 0.5f, 0.0f, 255.0f,0}};
 
-    const auto root = CreateRectSegmentContext({"Root",{LengthUnitType::Flat, 0.0f}, 0.0f, std::numeric_limits<float>::max(),
+
+
+
+    const auto root = CreateSegmentContext<RectSegmentContext, RectSegmentCreateInfo>({"Root",{LengthUnitType::Flat, 0.0f}, 0.0f, std::numeric_limits<float>::max(),
         {LengthUnitType::Flat, 0.0f}, 0.0f, std::numeric_limits<float>::max(), FlexDirection::Row, 1.0f, 1.0f,0}, 600.0f, 600.0f);
-    const auto panelA = CreateRectSegmentContext({"PanelA", {LengthUnitType::Flat, 200.0f}, 10.0f, std::numeric_limits<float>::max(),
-        {LengthUnitType::Percent, 50.0f}, 0.0f, std::numeric_limits<float>::max(), FlexDirection::Row, 1.0f, 1.0f,0});
-    const auto panelB = CreateRectSegmentContext({"PanelB", {LengthUnitType::Auto, 000.0f}, 20.0f, std::numeric_limits<float>::max(),
+    const auto panelA = CreateSegmentContext<RectSegmentContext, RectSegmentCreateInfo>({"PanelA", {LengthUnitType::Flat, 200.0f}, 10.0f, std::numeric_limits<float>::max(),
+        {LengthUnitType::Auto, 50.0f}, 0.0f, std::numeric_limits<float>::max(), FlexDirection::Row, 1.0f, 1.0f,0});
+    const auto panelB = CreateSegmentContext<RectSegmentContext, RectSegmentCreateInfo>({"PanelB", {LengthUnitType::Auto, 000.0f}, 20.0f, std::numeric_limits<float>::max(),
         {LengthUnitType::Auto, 0.0f}, 0.0f, std::numeric_limits<float>::max(), FlexDirection::Row, 1.0f, 1.0f,0});
-    const auto panelC = CreateRectSegmentContext({"PanelC", {LengthUnitType::Flat, 200.0f}, 30.0f, std::numeric_limits<float>::max(),
+    const auto panelC = CreateSegmentContext<RectSegmentContext, RectSegmentCreateInfo>({"PanelC", {LengthUnitType::Flat, 200.0f}, 30.0f, std::numeric_limits<float>::max(),
         {LengthUnitType::Auto, 0.0f}, 0.0f, std::numeric_limits<float>::max(), FlexDirection::Row, 1.0f, 1.0f,0});
-    const auto panelB1= CreateRectSegmentContext({"PanelB1", {LengthUnitType::Flat, 100.0f}, 0.0f, std::numeric_limits<float>::max(),
+    const auto panelB1= CreateSegmentContext<RectSegmentContext, RectSegmentCreateInfo>({"PanelB1", {LengthUnitType::Flat, 100.0f}, 0.0f, std::numeric_limits<float>::max(),
         {LengthUnitType::Flat, 100.0f}, 110.0f, std::numeric_limits<float>::max(), FlexDirection::Column, 1.0f, 1.0f,0});
-    const auto panelB2= CreateRectSegmentContext({"PanelB2", {LengthUnitType::Flat, 100.0f}, 0.0f, std::numeric_limits<float>::max(),
+    const auto panelB2= CreateSegmentContext<RectSegmentContext, RectSegmentCreateInfo>({"PanelB2", {LengthUnitType::Flat, 100.0f}, 0.0f, std::numeric_limits<float>::max(),
         {LengthUnitType::Flat, 100.0f}, 50.0f, std::numeric_limits<float>::max(), FlexDirection::Column, 1.0f, 1.0f,0});
-    const auto panelB3= CreateRectSegmentContext({"PanelB3", {LengthUnitType::Flat, 50.0f}, 0.0f, std::numeric_limits<float>::max(),
-        {LengthUnitType::Percent, 50.0f}, 0.0f, std::numeric_limits<float>::max(), FlexDirection::Column, 1.0f, 1.0f,0});
+    const auto panelB3= CreateSegmentContext<RectSegmentContext, RectSegmentCreateInfo>({"PanelB3", {LengthUnitType::Flat, 50.0f}, 0.0f, std::numeric_limits<float>::max(),
+        {LengthUnitType::Auto, 50.0f}, 0.0f, std::numeric_limits<float>::max(), FlexDirection::Column, 1.0f, 1.0f,0});
 
     Link(*root.get(),*panelA.get());
     Link(*root.get(),*panelB.get());
@@ -120,7 +61,7 @@ int main() {
 
 std::this_thread::sleep_for(std::chrono::seconds(2));
 
-    Sizing(*root.get(), 800, 600);
+    Sizing(*root.get(), 400, 600);
     //
     // Placing(root);
 
