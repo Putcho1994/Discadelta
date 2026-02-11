@@ -100,7 +100,9 @@ export namespace ufox::geometry::discadelta {
         }
     }
 
-    constexpr void UpdatePriorityLists(LinearSegmentContext& ctx) noexcept
+    template<typename ContextT>
+    requires std::same_as<ContextT, LinearSegmentContext> || std::same_as<ContextT, RectSegmentContext>
+    constexpr void UpdatePriorityLists(ContextT& ctx) noexcept
     {
         ctx.compressCascadePriorities.clear();
         ctx.expandCascadePriorities.clear();
@@ -118,13 +120,23 @@ export namespace ufox::geometry::discadelta {
         compressPriorities.reserve(ctx.children.size());
         expandPriorities.reserve(ctx.children.size());
 
-        for (size_t i = 0; i < ctx.children.size(); ++i)
-        {
+        for (size_t i = 0; i < ctx.children.size(); ++i){
             const auto& child = ctx.children[i];
 
-            // Linear context has only one main axis
-            float compressRoom = std::max(0.0f, child->validatedBase - child->validatedMin);
-            float expandRoom   = std::max(0.0f, child->validatedMax  - child->validatedBase);
+            float compressRoom{0.0f};
+            float expandRoom{0.0f};
+
+            if constexpr (std::same_as<ContextT, LinearSegmentContext>) {
+                compressRoom = std::max(0.0f, child->validatedBase - child->validatedMin);
+                expandRoom   = std::max(0.0f, child->validatedMax  - child->validatedBase);
+            }
+            else if (ctx.config.direction == FlexDirection::Row) {
+                compressRoom = std::max(0.0f, child->validatedWidthBase - child->validatedWidthMin);
+                expandRoom   = std::max(0.0f, child->validatedWidthMax - child->validatedWidthBase);
+            } else {
+                compressRoom = std::max(0.0f, child->validatedHeightBase - child->validatedHeightMin);
+                expandRoom   = std::max(0.0f, child->validatedHeightMax - child->validatedHeightBase);
+            }
 
             compressPriorities.emplace_back(compressRoom, i);
             expandPriorities.emplace_back(expandRoom,   i);
@@ -142,46 +154,6 @@ export namespace ufox::geometry::discadelta {
             return a.first > b.first;
         });
 
-        for (const auto &val: expandPriorities | std::views::values) {
-            ctx.expandCascadePriorities.push_back(val);
-        }
-    }
-
-    constexpr void UpdatePriorityLists(RectSegmentContext& ctx) noexcept {
-        ctx.compressCascadePriorities.clear();
-        ctx.expandCascadePriorities.clear();
-
-        if (ctx.children.empty()) return;
-
-        ctx.compressCascadePriorities.reserve(ctx.children.size());
-        ctx.expandCascadePriorities.reserve(ctx.children.size());
-
-        std::vector<std::pair<float, size_t>> compressPriorities;
-        std::vector<std::pair<float, size_t>> expandPriorities;
-        compressPriorities.reserve(ctx.children.size());
-        expandPriorities.reserve(ctx.children.size());
-
-        for (size_t i = 0; i < ctx.children.size(); ++i) {
-            const auto& child = ctx.children[i];
-            if (ctx.config.direction == FlexDirection::Row) {
-                compressPriorities.emplace_back(std::max(0.0f, child->validatedWidthBase - child->validatedWidthMin), i);
-                expandPriorities.emplace_back(std::max(0.0f, child->validatedWidthMax - child->validatedWidthBase), i);
-            } else {
-                compressPriorities.emplace_back(std::max(0.0f, child->validatedHeightBase - child->validatedHeightMin), i);
-                expandPriorities.emplace_back(std::max(0.0f, child->validatedHeightMax - child->validatedHeightBase), i);
-            }
-        }
-
-        std::ranges::sort(compressPriorities, [](const auto& a, const auto& b) {
-            return a.first < b.first;
-        });
-        for (const auto &val: compressPriorities | std::views::values) {
-            ctx.compressCascadePriorities.push_back(val);
-        }
-
-        std::ranges::sort(expandPriorities, [](const auto& a, const auto& b) {
-            return a.first > b.first;
-        });
         for (const auto &val: expandPriorities | std::views::values) {
             ctx.expandCascadePriorities.push_back(val);
         }
