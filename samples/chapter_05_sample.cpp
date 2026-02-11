@@ -37,7 +37,7 @@ int main() {
 
 
     const auto root = CreateSegmentContext<RectSegmentContext, RectSegmentCreateInfo>({"Root",{LengthUnitType::Flat, 0.0f}, 0.0f, std::numeric_limits<float>::max(),
-        {LengthUnitType::Flat, 0.0f}, 0.0f, std::numeric_limits<float>::max(), FlexDirection::Row, 1.0f, 1.0f,0}, 600.0f, 600.0f);
+        {LengthUnitType::Flat, 0.0f}, 0.0f, std::numeric_limits<float>::max(), FlexDirection::Row, 1.0f, 1.0f,0});
     const auto panelA = CreateSegmentContext<RectSegmentContext, RectSegmentCreateInfo>({"PanelA", {LengthUnitType::Flat, 200.0f}, 10.0f, std::numeric_limits<float>::max(),
         {LengthUnitType::Auto, 50.0f}, 0.0f, std::numeric_limits<float>::max(), FlexDirection::Row, 1.0f, 1.0f,0});
     const auto panelB = CreateSegmentContext<RectSegmentContext, RectSegmentCreateInfo>({"PanelB", {LengthUnitType::Auto, 000.0f}, 20.0f, std::numeric_limits<float>::max(),

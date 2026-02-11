@@ -34,42 +34,61 @@ export namespace ufox::geometry::discadelta {
 
     template<typename ContextT>
     requires std::same_as<ContextT, LinearSegmentContext> || std::same_as<ContextT, RectSegmentContext>
-    [[nodiscard]] constexpr  auto GetChildSegmentContext(const ContextT& parentCtx, const std::string& name) noexcept ->ContextT* {
+    [[nodiscard]] constexpr auto GetChildSegmentContext(const ContextT& parentCtx, const std::string& name) noexcept ->ContextT* {
         const auto it = parentCtx.childrenIndies.find(name);
         return it == parentCtx.childrenIndies.end()? nullptr : parentCtx.children[it->second];
     }
 
     template<typename ContextT>
     requires std::same_as<ContextT, LinearSegmentContext> || std::same_as<ContextT, RectSegmentContext>
-    [[nodiscard]] constexpr  auto GetChildSegmentContext(const ContextT& parentCtx, const size_t index) noexcept ->ContextT*{
+    [[nodiscard]] constexpr auto GetChildSegmentContext(const ContextT& parentCtx, const size_t index) noexcept ->ContextT*{
         return index < parentCtx.children.size() ? parentCtx.children[index] : nullptr;
     }
 
-    template<typename ContextT>
-    requires std::same_as<ContextT, LinearSegmentContext> || std::same_as<ContextT, RectSegmentContext>
-    constexpr void ResetAccumulatedMetrics(ContextT& ctx) noexcept {
-        if constexpr (std::same_as<ContextT, LinearSegmentContext>) {
-            ctx.accumulatedBase               = 0.0f;
-            ctx.accumulatedMin                = 0.0f;
-            ctx.accumulatedExpandRatio        = 0.0f;
-            ctx.accumulatedCompressSolidify   = 0.0f;
-        }
-        else {
-            ctx.accumulatedWidthBase = 0.0f;
-            ctx.accumulatedHeightBase = 0.0f;
-            ctx.accumulatedWidthMin = 0.0f;
-            ctx.accumulatedHeightMin = 0.0f;
-            ctx.accumulatedExpandRatio = 0.0f;
-            ctx.accumulatedWidthCompressSolidify = 0.0f;
-            ctx.accumulatedHeightCompressSolidify = 0.0f;
-        }
+    [[nodiscard]] constexpr float ChooseGreaterDistance(const float& a, const float& b) noexcept {
+        return std::max(a,b);
+    }
 
+    [[nodiscard]] constexpr float ChooseGreaterDistance(const float& a, const float& b, const float& c) noexcept {
+        return std::max({a,b,c});
+    }
+
+    constexpr void ResetAccumulatedMetrics(LinearSegmentContext& ctx) noexcept {
+        ctx.accumulatedBase               = 0.0f;
+        ctx.accumulatedMin                = 0.0f;
+        ctx.accumulatedExpandRatio        = 0.0f;
+        ctx.accumulatedCompressSolidify   = 0.0f;
         ctx.childrenIndies.clear();
     }
 
-    template<typename ContextT>
-    requires std::same_as<ContextT, LinearSegmentContext> || std::same_as<ContextT, RectSegmentContext>
-    constexpr void UpdateAccumulatedMetrics(ContextT& ctx) noexcept {
+    constexpr void ResetAccumulatedMetrics(RectSegmentContext& ctx) noexcept {
+        ctx.accumulatedWidthBase = 0.0f;
+        ctx.accumulatedHeightBase = 0.0f;
+        ctx.accumulatedWidthMin = 0.0f;
+        ctx.accumulatedHeightMin = 0.0f;
+        ctx.accumulatedExpandRatio = 0.0f;
+        ctx.accumulatedCompressSolidify = 0.0f;
+        ctx.childrenIndies.clear();
+    }
+
+    constexpr void UpdateAccumulatedMetrics(LinearSegmentContext& ctx) noexcept {
+        ResetAccumulatedMetrics(ctx);
+        if (ctx.children.empty()) return;
+
+        ctx.childrenIndies.reserve(ctx.children.size());
+
+        for (size_t i = 0; i < ctx.children.size(); ++i) {
+            const auto& child = ctx.children[i];
+            ctx.childrenIndies[child->config.name] = i;
+            ctx.accumulatedBase += child->config.base.type == LengthUnitType::Auto? child->accumulatedBase: child->validatedBase;
+            float childMin = ChooseGreaterDistance(child->validatedMin, child->compressSolidify);
+            ctx.accumulatedMin += ChooseGreaterDistance(child->accumulatedMin, childMin);
+            ctx.accumulatedCompressSolidify += child->compressSolidify;
+            ctx.accumulatedExpandRatio += child->expandRatio;
+        }
+    }
+
+    constexpr void UpdateAccumulatedMetrics(RectSegmentContext& ctx) noexcept {
         ResetAccumulatedMetrics(ctx);
         if (ctx.children.empty()) return;
 
@@ -79,33 +98,27 @@ export namespace ufox::geometry::discadelta {
             const auto& child = ctx.children[i];
             ctx.childrenIndies[child->config.name] = i;
 
-            if constexpr (std::same_as<ContextT, LinearSegmentContext>) {
-                ctx.accumulatedBase += child->config.base.type == LengthUnitType::Auto? child->accumulatedBase: child->validatedBase;
+            ctx.accumulatedWidthBase += child->config.width.type == LengthUnitType::Auto? child->accumulatedWidthBase : child->validatedWidthBase;
+            ctx.accumulatedHeightBase += child->config.height.type == LengthUnitType::Auto? child->accumulatedHeightBase : child->validatedHeightBase;
 
-                float childMin = std::max(child->validatedMin, child->compressSolidify);
-                ctx.accumulatedMin += std::max(childMin, child->accumulatedMin);
-                ctx.accumulatedCompressSolidify += child->compressSolidify;
-            }else {
-                ctx.accumulatedWidthBase += child->config.width.type == LengthUnitType::Auto? child->accumulatedWidthBase : child->validatedWidthBase;
-                ctx.accumulatedHeightBase += child->config.height.type == LengthUnitType::Auto? child->accumulatedHeightBase : child->validatedHeightBase;
+            float compressSolidify{0.0f};
 
-                if (ctx.config.direction == FlexDirection::Row) {
-                    const float& childWidthMin = std::max(child->validatedWidthMin, child->widthCompressSolidify);
-                    const float& childHeightMin = std::max(child->validatedHeightMin, child->accumulatedHeightMin);
-                    ctx.accumulatedWidthMin += std::max(childWidthMin, child->accumulatedWidthMin);
-                    ctx.accumulatedHeightMin = std::max(ctx.accumulatedHeightMin, childHeightMin);
-                }
-                else {
-                    const float& childHeightMin = std::max(child->validatedHeightMin, child->heightCompressSolidify);
-                    const float& childWidthMin = std::max(child->validatedWidthMin, child->accumulatedWidthMin);
-                    ctx.accumulatedWidthMin = std::max(ctx.accumulatedWidthMin, childWidthMin);
-                    ctx.accumulatedHeightMin += std::max(childHeightMin, child->accumulatedHeightMin);
-                }
-
-                ctx.accumulatedWidthCompressSolidify += child->widthCompressSolidify;
-                ctx.accumulatedHeightCompressSolidify += child->heightCompressSolidify;
+            if (ctx.config.direction == FlexDirection::Row) {
+                compressSolidify = child->widthCompressSolidify;
+                const float& childWidthMin = ChooseGreaterDistance(child->validatedWidthMin, compressSolidify);
+                const float& childHeightMin = ChooseGreaterDistance(child->validatedHeightMin, child->accumulatedHeightMin);
+                ctx.accumulatedWidthMin += ChooseGreaterDistance(childWidthMin, child->accumulatedWidthMin);
+                ctx.accumulatedHeightMin = ChooseGreaterDistance(ctx.accumulatedHeightMin, childHeightMin);
+            }
+            else {
+                compressSolidify = child->heightCompressSolidify;
+                const float& childHeightMin = ChooseGreaterDistance(child->validatedHeightMin, compressSolidify);
+                const float& childWidthMin = ChooseGreaterDistance(child->validatedWidthMin, child->accumulatedWidthMin);
+                ctx.accumulatedWidthMin = ChooseGreaterDistance(ctx.accumulatedWidthMin, childWidthMin);
+                ctx.accumulatedHeightMin += ChooseGreaterDistance(child->accumulatedHeightMin, childHeightMin);
             }
 
+            ctx.accumulatedCompressSolidify += compressSolidify;
             ctx.accumulatedExpandRatio += child->expandRatio;
         }
     }
@@ -137,15 +150,15 @@ export namespace ufox::geometry::discadelta {
             float expandRoom{0.0f};
 
             if constexpr (std::same_as<ContextT, LinearSegmentContext>) {
-                compressRoom = std::max(0.0f, child->validatedBase - child->validatedMin);
-                expandRoom   = std::max(0.0f, child->validatedMax  - child->validatedBase);
+                compressRoom = ChooseGreaterDistance(0.0f,child->validatedBase - child->validatedMin);
+                expandRoom   = ChooseGreaterDistance(0.0f,child->validatedMax  - child->validatedBase);
             }
             else if (ctx.config.direction == FlexDirection::Row) {
-                compressRoom = std::max(0.0f, child->validatedWidthBase - child->validatedWidthMin);
-                expandRoom   = std::max(0.0f, child->validatedWidthMax - child->validatedWidthBase);
+                compressRoom = ChooseGreaterDistance(0.0f,child->validatedWidthBase - child->validatedWidthMin);
+                expandRoom   = ChooseGreaterDistance(0.0f,child->validatedWidthMax - child->validatedWidthBase);
             } else {
-                compressRoom = std::max(0.0f, child->validatedHeightBase - child->validatedHeightMin);
-                expandRoom   = std::max(0.0f, child->validatedHeightMax - child->validatedHeightBase);
+                compressRoom = ChooseGreaterDistance(0.0f,child->validatedHeightBase - child->validatedHeightMin);
+                expandRoom   = ChooseGreaterDistance(0.0f,child->validatedHeightMax - child->validatedHeightBase);
             }
 
             compressPriorities.emplace_back(compressRoom, i);
@@ -169,18 +182,15 @@ export namespace ufox::geometry::discadelta {
         }
     }
 
-    void UpdateContextMetrics(LinearSegmentContext& ctx) noexcept
-    {
+    void UpdateContextMetrics(LinearSegmentContext& ctx) noexcept{
         UpdateAccumulatedMetrics(ctx);
 
         const LinearSegmentCreateInfo& config = ctx.config;
 
-
         ctx.validatedMin = std::max(0.0f, config.min);
         ctx.validatedMax = std::max(ctx.validatedMin, config.max);
 
-
-        float resolvedBase = config.base.resolve(ctx.accumulatedBase);
+        const float resolvedBase = config.base.resolve(ctx.accumulatedBase);
         ctx.validatedBase = std::clamp(resolvedBase, ctx.validatedMin, ctx.validatedMax);
 
         ctx.compressRatio = std::max(0.0f, config.compressRatio);
@@ -284,35 +294,16 @@ export namespace ufox::geometry::discadelta {
 
     template<typename ContextT,typename ConfigT>
     requires ((std::same_as<ContextT, LinearSegmentContext> && std::same_as<ConfigT, LinearSegmentCreateInfo>) ||(std::same_as<ContextT, RectSegmentContext>   && std::same_as<ConfigT, RectSegmentCreateInfo>))
-    constexpr auto CreateSegmentContext(const ConfigT& config, float mainInput = 0.0f, float crossInput = 0.0f) noexcept -> std::unique_ptr<ContextT, decltype(&DestroySegmentContext<ContextT>)> {
+    constexpr auto CreateSegmentContext(const ConfigT& config) noexcept -> std::unique_ptr<ContextT, decltype(&DestroySegmentContext<ContextT>)> {
         auto* ctx = new ContextT{config};
         UpdateContextMetrics(*ctx);
-
-        if constexpr (std::same_as<ContextT, LinearSegmentContext>) {
-            const float validatedInputDistance = std::max({ ctx->accumulatedMin, ctx->validatedMin, mainInput });
-            ctx->content.base        = validatedInputDistance;
-            ctx->content.expandDelta = 0.0f;
-            ctx->content.distance    = validatedInputDistance;
-        }
-        else {
-            const float validatedWidthInput = std::max({ctx->accumulatedWidthMin, ctx->validatedWidthMin, mainInput});
-            const float validatedHeightInput = std::max({ctx->accumulatedHeightMin, ctx->validatedHeightMin, crossInput});
-            ctx->content.widthBase          = validatedWidthInput;
-            ctx->content.heightBase         = validatedHeightInput;
-            ctx->content.widthExpandDelta   = 0.0f;
-            ctx->content.heightExpandDelta  = 0.0f;
-            ctx->content.width              = validatedWidthInput;
-            ctx->content.height             = validatedHeightInput;
-        }
 
         return std::unique_ptr<ContextT, decltype(&DestroySegmentContext<ContextT>)>{ctx,&DestroySegmentContext<ContextT>
         };
     }
 
     constexpr std::pair<float, bool> MakeSizeMetrics(const float& targetDistance, const LinearSegmentContext& ctx) noexcept {
-
-        const float validatedInputDistance = std::max({ ctx.accumulatedMin, ctx.validatedMin, targetDistance });
-
+        const float validatedInputDistance = ChooseGreaterDistance(ctx.accumulatedMin, ctx.validatedMin, targetDistance);
         const bool isCompressionMode = validatedInputDistance < ctx.accumulatedBase;
 
         return std::make_tuple(
@@ -321,17 +312,16 @@ export namespace ufox::geometry::discadelta {
         );
     }
 
-
-
     constexpr std::tuple<float, float, bool, bool> MakeSizeMetrics(const float& targetWidth, const float& targetHeight,
        const RectSegmentContext& ctx) noexcept {
-        const float validatedWidthInput = std::max(std::max(ctx.accumulatedWidthMin, ctx.validatedWidthMin), targetWidth);
-        const float validatedHeightInput = std::max(std::max(ctx.accumulatedHeightMin, ctx.validatedHeightMin), targetHeight);
+        const float validatedWidthInput = ChooseGreaterDistance(ctx.accumulatedWidthMin,ctx.validatedWidthMin, targetWidth );
+        const float validatedHeightInput = ChooseGreaterDistance(ctx.accumulatedHeightMin, ctx.validatedHeightMin, targetHeight);
         const bool isRow = ctx.config.direction == FlexDirection::Row;
         const float directionAccumulatedBase = isRow ? ctx.accumulatedWidthBase : ctx.accumulatedHeightBase;
         const float directionInput =  isRow ? validatedWidthInput : validatedHeightInput;
+        const bool isCompressionMode = directionInput < directionAccumulatedBase;
 
-        return std::make_tuple(validatedWidthInput, validatedHeightInput, isRow, directionInput < directionAccumulatedBase);
+        return std::make_tuple(validatedWidthInput, validatedHeightInput, isRow, isCompressionMode);
     }
 
 
@@ -373,7 +363,7 @@ export namespace ufox::geometry::discadelta {
         return std::make_tuple(
             value,
             isRow ? ctx.accumulatedWidthBase : ctx.accumulatedHeightBase,
-            isRow ? ctx.accumulatedWidthCompressSolidify: ctx.accumulatedHeightCompressSolidify,
+            ctx.accumulatedCompressSolidify,
             std::span(ctx.compressCascadePriorities));
     }
 
@@ -585,7 +575,7 @@ export namespace ufox::geometry::discadelta {
         }
     }
 
-    void Placing(LinearSegmentContext& ctx, const float& parentOffset = 0.0f) noexcept {
+    constexpr void Placing(LinearSegmentContext& ctx, const float& parentOffset = 0.0f) noexcept {
         ctx.content.offset = parentOffset;
         if (ctx.children.empty()) return;
 
@@ -597,6 +587,30 @@ export namespace ufox::geometry::discadelta {
             if (childCtx == nullptr) continue;
             Placing(*childCtx, currentOffset);
             currentOffset += childCtx->content.distance;
+        }
+    }
+
+    constexpr void Placing(RectSegmentContext& ctx, const float relativeX = 0.0f, const float relativeY = 0.0f) noexcept
+    {
+        ctx.content.x = relativeX;
+        ctx.content.y = relativeY;
+
+        if (ctx.children.empty()) return;
+
+        const auto orderedIndices = GetOrderedIndices(ctx);
+        const bool isRow = ctx.config.direction == FlexDirection::Row;
+        float currentMainOffset = 0.0f;
+
+        for (const size_t idx : orderedIndices){
+            RectSegmentContext* child = GetChildSegmentContext(ctx, idx);
+            if (child == nullptr) continue;
+
+            const float childX = relativeX + (isRow ? currentMainOffset : 0.0f);
+            const float childY = relativeY + (isRow ? 0.0f : currentMainOffset);
+
+            Placing(*child, childX, childY);
+
+            currentMainOffset += isRow ? child->content.width : child->content.height;
         }
     }
 }

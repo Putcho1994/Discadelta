@@ -380,8 +380,8 @@ export namespace ufox::geometry::discadelta {
         float accumulatedHeightBase = 0.0f;
         float accumulatedWidthMin = 0.0f;
         float accumulatedHeightMin = 0.0f;
-        float accumulatedWidthCompressSolidify = 0.0f;
-        float accumulatedHeightCompressSolidify = 0.0f;
+        float accumulatedCompressSolidify = 0.0f;
+
         float accumulatedExpandRatio = 0.0f;
         float compressRatio = 0.0f;
         float widthCompressCapacity = 0.0f;
