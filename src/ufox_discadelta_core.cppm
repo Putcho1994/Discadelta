@@ -5,13 +5,12 @@ module;
 
 #include <algorithm>
 #include <string>
-#include <limits>
 #include <memory>
 #include <vector>
 #include <ranges>
 #include <format>
-#include <iomanip>     // if needed
-#include <iostream>
+#include <iomanip>
+#include <numeric>
 
 export module ufox_discadelta_core;
 
@@ -21,6 +20,17 @@ export namespace ufox::geometry::discadelta {
 
     void Sizing(LinearSegmentContext& ctx, const float& value, const float& delta = 0.0f);
     void Sizing(RectSegmentContext& ctx, const float& width, const float& height, const float& widthDelta = 0.0f, const float& heightDelta = 0.0f);
+
+    template<typename ContextT>
+    requires std::same_as<ContextT, LinearSegmentContext> || std::same_as<ContextT, RectSegmentContext>
+    [[nodiscard]] constexpr std::vector<size_t> GetOrderedIndices(const ContextT& ctx) noexcept {
+        std::vector<size_t> indices(ctx.children.size());
+        std::iota(indices.begin(), indices.end(), size_t{0});
+
+        std::ranges::sort(indices,[ctx](const size_t a, const size_t b) noexcept {return ctx.children[a]->order < ctx.children[b]->order;});
+
+        return indices;
+    }
 
     template<typename ContextT>
     requires std::same_as<ContextT, LinearSegmentContext> || std::same_as<ContextT, RectSegmentContext>
@@ -575,18 +585,18 @@ export namespace ufox::geometry::discadelta {
         }
     }
 
-    // void Placing(LinearSegmentContext& ctx, const float& parentOffset = 0.0f) noexcept {
-    //     ctx.content.offset = parentOffset;
-    //     if (ctx.children.empty()) return;
-    //
-    //     auto indices = ctx.GetOrderedChildrenIndices();
-    //
-    //     float currentOffset = parentOffset;
-    //     for (size_t idx : indices) {
-    //         auto* childCtx = ctx.GetChildByIndex(idx);
-    //         if (childCtx == nullptr) continue;
-    //         Placing(*childCtx, currentOffset);
-    //         currentOffset += childCtx->content.distance;
-    //     }
-    // }
+    void Placing(LinearSegmentContext& ctx, const float& parentOffset = 0.0f) noexcept {
+        ctx.content.offset = parentOffset;
+        if (ctx.children.empty()) return;
+
+        const auto indices = GetOrderedIndices(ctx);
+
+        float currentOffset = parentOffset;
+        for (const size_t idx : indices) {
+            auto* childCtx = GetChildSegmentContext(ctx,idx);
+            if (childCtx == nullptr) continue;
+            Placing(*childCtx, currentOffset);
+            currentOffset += childCtx->content.distance;
+        }
+    }
 }

@@ -119,6 +119,7 @@ export namespace ufox::geometry::discadelta {
         std::unordered_map<std::string, size_t> childrenIndies;
         std::vector<size_t> compressCascadePriorities;
         std::vector<size_t> expandCascadePriorities;
+        size_t order{0};
 
         float validatedBase = 0.0f;
         float validatedMin = 0.0f;
@@ -388,6 +389,7 @@ export namespace ufox::geometry::discadelta {
         float heightCompressCapacity = 0.0f;
         float heightCompressSolidify = 0.0f;
         float expandRatio = 0.0f;
+        size_t order{0};
 
         explicit RectSegmentContext(RectSegmentCreateInfo  config) : config(std::move(config)) {}
     };
