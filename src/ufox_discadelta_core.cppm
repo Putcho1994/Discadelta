@@ -24,15 +24,15 @@ export namespace ufox::geometry::discadelta {
 
     template<typename ContextT>
     requires std::same_as<ContextT, LinearSegmentContext> || std::same_as<ContextT, RectSegmentContext>
-    [[nodiscard]] constexpr  auto GetChildSegmentContext(const ContextT& ctx, const std::string& name) noexcept ->ContextT* {
-        const auto it = ctx.childrenIndies.find(name);
-        return it == ctx.childrenIndies.end()? nullptr : ctx.children[it->second];
+    [[nodiscard]] constexpr  auto GetChildSegmentContext(const ContextT& parentCtx, const std::string& name) noexcept ->ContextT* {
+        const auto it = parentCtx.childrenIndies.find(name);
+        return it == parentCtx.childrenIndies.end()? nullptr : parentCtx.children[it->second];
     }
 
     template<typename ContextT>
     requires std::same_as<ContextT, LinearSegmentContext> || std::same_as<ContextT, RectSegmentContext>
-    [[nodiscard]] constexpr  auto GetChildSegmentContext(const ContextT& ctx, const size_t index) noexcept ->ContextT*{
-        return index < ctx.children.size() ? ctx.children[index] : nullptr;
+    [[nodiscard]] constexpr  auto GetChildSegmentContext(const ContextT& parentCtx, const size_t index) noexcept ->ContextT*{
+        return index < parentCtx.children.size() ? parentCtx.children[index] : nullptr;
     }
 
     template<typename ContextT>
@@ -57,7 +57,9 @@ export namespace ufox::geometry::discadelta {
         ctx.childrenIndies.clear();
     }
 
-    void UpdateAccumulatedMetrics(LinearSegmentContext& ctx) noexcept {
+    template<typename ContextT>
+    requires std::same_as<ContextT, LinearSegmentContext> || std::same_as<ContextT, RectSegmentContext>
+    constexpr void UpdateAccumulatedMetrics(ContextT& ctx) noexcept {
         ResetAccumulatedMetrics(ctx);
         if (ctx.children.empty()) return;
 
@@ -67,45 +69,34 @@ export namespace ufox::geometry::discadelta {
             const auto& child = ctx.children[i];
             ctx.childrenIndies[child->config.name] = i;
 
-            ctx.accumulatedBase += child->config.base.type == LengthUnitType::Auto? child->accumulatedBase: child->validatedBase;
+            if constexpr (std::same_as<ContextT, LinearSegmentContext>) {
+                ctx.accumulatedBase += child->config.base.type == LengthUnitType::Auto? child->accumulatedBase: child->validatedBase;
 
-            float childMin = std::max(child->validatedMin, child->compressSolidify);
-            ctx.accumulatedMin += std::max(childMin, child->accumulatedMin);
+                float childMin = std::max(child->validatedMin, child->compressSolidify);
+                ctx.accumulatedMin += std::max(childMin, child->accumulatedMin);
+                ctx.accumulatedCompressSolidify += child->compressSolidify;
+            }else {
+                ctx.accumulatedWidthBase += child->config.width.type == LengthUnitType::Auto? child->accumulatedWidthBase : child->validatedWidthBase;
+                ctx.accumulatedHeightBase += child->config.height.type == LengthUnitType::Auto? child->accumulatedHeightBase : child->validatedHeightBase;
 
-            ctx.accumulatedExpandRatio      += child->expandRatio;
-            ctx.accumulatedCompressSolidify += child->compressSolidify;
-        }
-    }
+                if (ctx.config.direction == FlexDirection::Row) {
+                    const float& childWidthMin = std::max(child->validatedWidthMin, child->widthCompressSolidify);
+                    const float& childHeightMin = std::max(child->validatedHeightMin, child->accumulatedHeightMin);
+                    ctx.accumulatedWidthMin += std::max(childWidthMin, child->accumulatedWidthMin);
+                    ctx.accumulatedHeightMin = std::max(ctx.accumulatedHeightMin, childHeightMin);
+                }
+                else {
+                    const float& childHeightMin = std::max(child->validatedHeightMin, child->heightCompressSolidify);
+                    const float& childWidthMin = std::max(child->validatedWidthMin, child->accumulatedWidthMin);
+                    ctx.accumulatedWidthMin = std::max(ctx.accumulatedWidthMin, childWidthMin);
+                    ctx.accumulatedHeightMin += std::max(childHeightMin, child->accumulatedHeightMin);
+                }
 
-    void UpdateAccumulatedMetrics(RectSegmentContext& ctx) noexcept {
-        ResetAccumulatedMetrics(ctx);
-        ctx.childrenIndies.reserve(ctx.children.size());
-
-        if (ctx.children.empty()) return;
-
-        for (size_t i = 0; i < ctx.children.size(); ++i) {
-            const auto& child = ctx.children[i];
-            ctx.childrenIndies[child->config.name] = i;
-
-            ctx.accumulatedWidthBase += child->config.width.type == LengthUnitType::Auto? child->accumulatedWidthBase : child->validatedWidthBase;
-            ctx.accumulatedHeightBase += child->config.height.type == LengthUnitType::Auto? child->accumulatedHeightBase : child->validatedHeightBase;
-
-            if (ctx.config.direction == FlexDirection::Row) {
-                const float& childWidthMin = std::max(child->validatedWidthMin, child->widthCompressSolidify);
-                const float& childHeightMin = std::max(child->validatedHeightMin, child->accumulatedHeightMin);
-                ctx.accumulatedWidthMin += std::max(childWidthMin, child->accumulatedWidthMin);
-                ctx.accumulatedHeightMin = std::max(ctx.accumulatedHeightMin, childHeightMin);
-            }
-            else {
-                const float& childHeightMin = std::max(child->validatedHeightMin, child->heightCompressSolidify);
-                const float& childWidthMin = std::max(child->validatedWidthMin, child->accumulatedWidthMin);
-                ctx.accumulatedWidthMin = std::max(ctx.accumulatedWidthMin, childWidthMin);
-                ctx.accumulatedHeightMin += std::max(childHeightMin, child->accumulatedHeightMin);
+                ctx.accumulatedWidthCompressSolidify += child->widthCompressSolidify;
+                ctx.accumulatedHeightCompressSolidify += child->heightCompressSolidify;
             }
 
             ctx.accumulatedExpandRatio += child->expandRatio;
-            ctx.accumulatedWidthCompressSolidify += child->widthCompressSolidify;
-            ctx.accumulatedHeightCompressSolidify += child->heightCompressSolidify;
         }
     }
 
