@@ -196,7 +196,7 @@ export namespace ufox::geometry::discadelta {
         }
     }
 
-    constexpr void UpdateContextMetrics(LinearSegmentContext& ctx) noexcept
+    void UpdateContextMetrics(LinearSegmentContext& ctx) noexcept
     {
         UpdateAccumulatedMetrics(ctx);
 
@@ -225,7 +225,7 @@ export namespace ufox::geometry::discadelta {
         }
     }
 
-    constexpr void UpdateContextMetrics(RectSegmentContext& ctx) noexcept {
+    void UpdateContextMetrics(RectSegmentContext& ctx) noexcept {
         UpdateAccumulatedMetrics(ctx);
 
         const RectSegmentCreateInfo& config = ctx.config;
