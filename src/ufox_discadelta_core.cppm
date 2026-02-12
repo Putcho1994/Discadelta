@@ -138,21 +138,23 @@ export namespace ufox::geometry::discadelta {
         return index < parentCtx.children.size() ? parentCtx.children[index] : nullptr;
     }
 
+
     /**
-     * Updates the accumulated metrics for a given linear segment context.
+     * Updates the accumulated metrics of a `LinearSegmentContext` object.
      *
-     * This function resets and then calculates various accumulated metrics for the provided
-     * `LinearSegmentContext` object based on its associated child segments. It processes all
-     * children of the context, accumulating values such as base, minimum size, compression solidification,
-     * and expansion ratio. The indices of the children are also populated for quick lookup.
+     * This function recalculates and updates several accumulated values in the given context object
+     * based on its children elements. These metrics include base, minimum, expand ratio,
+     * and compress solidify values. The indices of the children are also cleared and repopulated.
      *
-     * The function is marked as `constexpr` to allow potential compile-time evaluation and
-     * as `noexcept` to indicate it does not throw exceptions.
+     * The function ensures that if the children list is empty, no processing occurs. If children are present,
+     * it iterates through each child and calculates cumulative metrics while associating indices with child names.
+     * Specific computations involve comparing distances and handling various attributes of child configurations.
      *
-     * @param ctx The `LinearSegmentContext` object whose accumulated metrics are to be updated.
-     *            This parameter is passed by reference and modified in place.
+     * @param ctx A reference to the `LinearSegmentContext` object whose metrics are to be updated.
+     * @return None.
+     * @throws None. The function does not throw exceptions.
      */
-    constexpr void UpdateAccumulatedMetrics(LinearSegmentContext& ctx) noexcept {
+    void UpdateAccumulatedMetrics(LinearSegmentContext& ctx) noexcept {
         ctx.accumulatedBase               = 0.0f;
         ctx.accumulatedMin                = 0.0f;
         ctx.accumulatedExpandRatio        = 0.0f;
@@ -173,21 +175,20 @@ export namespace ufox::geometry::discadelta {
         }
     }
 
+
     /**
-     * Updates the accumulated metrics of a RectSegmentContext.
+     * Updates the accumulated metrics for a given `RectSegmentContext`.
      *
-     * This constexpr and noexcept function calculates the accumulated metrics for the given
-     * RectSegmentContext object. It initializes base and minimum dimensions, processes each
-     * child segment, and updates various aggregated metrics such as accumulated width, height,
-     * expand ratio, and compress solidify values. It also constructs a mapping of child indices
-     * based on their configuration names. The function performs different calculations depending
-     * on the direction of the segment (row or column).
+     * This function clears and recalculates the accumulated metrics of a `RectSegmentContext` object.
+     * It iterates through the children of the context, checks their properties, and updates
+     * multiple accumulated values such as base dimensions, minimum dimensions, expand ratios, and
+     * compress solidify factors. The updates depend on the direction of the layout (row or column)
+     * specified in the context's configuration.
      *
-     * @param ctx The reference to the RectSegmentContext object whose metrics are to be updated.
-     * @return Void. The given context's properties are modified in place.
-     * @throws None. This function is marked noexcept.
+     * @param ctx Reference to the `RectSegmentContext` object whose accumulated metrics will be updated.
+     * @throws None. The function is declared as `noexcept` and guarantees no exceptions will be thrown.
      */
-    constexpr void UpdateAccumulatedMetrics(RectSegmentContext& ctx) noexcept {
+    void UpdateAccumulatedMetrics(RectSegmentContext& ctx) noexcept {
         ctx.accumulatedWidthBase = 0.0f;
         ctx.accumulatedHeightBase = 0.0f;
         ctx.accumulatedWidthMin = 0.0f;
