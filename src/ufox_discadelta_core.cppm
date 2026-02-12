@@ -4,6 +4,7 @@
 module;
 
 #include <algorithm>
+#include <cmath>
 #include <string>
 #include <memory>
 #include <vector>
@@ -18,8 +19,20 @@ import ufox_discadelta_lib;
 
 export namespace ufox::geometry::discadelta {
 
-    void Sizing(LinearSegmentContext& ctx, const float& value, const float& delta = 0.0f);
-    void Sizing(RectSegmentContext& ctx, const float& width, const float& height, const float& widthDelta = 0.0f, const float& heightDelta = 0.0f);
+    void Sizing(LinearSegmentContext& ctx, const float& value, const float& delta, const bool& round);
+    void Sizing(RectSegmentContext& ctx, const float& width, const float& height, const float& widthDelta, const float& heightDelta, const bool& round);
+
+    [[nodiscard]] constexpr float ChooseGreaterDistance(const float& a, const float& b) noexcept {
+        return std::max(a,b);
+    }
+
+    [[nodiscard]] constexpr float ChooseGreaterDistance(const float& a, const float& b, const float& c) noexcept {
+        return std::max({a,b,c});
+    }
+
+    [[nodiscard]] constexpr float ReadLengthValue(const Length& length, const float autoFallback = 0.0f) noexcept {
+        return length.type == LengthUnitType::Auto? autoFallback : length.value;
+    }
 
     template<typename ContextT>
     requires std::same_as<ContextT, LinearSegmentContext> || std::same_as<ContextT, RectSegmentContext>
@@ -43,14 +56,6 @@ export namespace ufox::geometry::discadelta {
     requires std::same_as<ContextT, LinearSegmentContext> || std::same_as<ContextT, RectSegmentContext>
     [[nodiscard]] constexpr auto GetChildSegmentContext(const ContextT& parentCtx, const size_t index) noexcept ->ContextT*{
         return index < parentCtx.children.size() ? parentCtx.children[index] : nullptr;
-    }
-
-    [[nodiscard]] constexpr float ChooseGreaterDistance(const float& a, const float& b) noexcept {
-        return std::max(a,b);
-    }
-
-    [[nodiscard]] constexpr float ChooseGreaterDistance(const float& a, const float& b, const float& c) noexcept {
-        return std::max({a,b,c});
     }
 
     constexpr void ResetAccumulatedMetrics(LinearSegmentContext& ctx) noexcept {
@@ -98,12 +103,12 @@ export namespace ufox::geometry::discadelta {
             const auto& child = ctx.children[i];
             ctx.childrenIndies[child->config.name] = i;
 
-            ctx.accumulatedWidthBase += child->config.width.type == LengthUnitType::Auto? child->accumulatedWidthBase : child->validatedWidthBase;
-            ctx.accumulatedHeightBase += child->config.height.type == LengthUnitType::Auto? child->accumulatedHeightBase : child->validatedHeightBase;
 
             float compressSolidify{0.0f};
 
             if (ctx.config.direction == FlexDirection::Row) {
+                ctx.accumulatedWidthBase += child->config.width.type == LengthUnitType::Auto? child->accumulatedWidthBase : child->validatedWidthBase;
+                ctx.accumulatedHeightBase = ChooseGreaterDistance(ctx.accumulatedHeightBase, child->config.height.type == LengthUnitType::Auto? child->accumulatedHeightBase : child->validatedHeightBase);
                 compressSolidify = child->widthCompressSolidify;
                 const float& childWidthMin = ChooseGreaterDistance(child->validatedWidthMin, compressSolidify);
                 const float& childHeightMin = ChooseGreaterDistance(child->validatedHeightMin, child->accumulatedHeightMin);
@@ -111,6 +116,8 @@ export namespace ufox::geometry::discadelta {
                 ctx.accumulatedHeightMin = ChooseGreaterDistance(ctx.accumulatedHeightMin, childHeightMin);
             }
             else {
+                ctx.accumulatedWidthBase = ChooseGreaterDistance(ctx.accumulatedWidthBase, child->config.width.type == LengthUnitType::Auto? child->accumulatedWidthBase : child->validatedWidthBase);
+                ctx.accumulatedHeightBase += child->config.height.type == LengthUnitType::Auto? child->accumulatedHeightBase : child->validatedHeightBase;
                 compressSolidify = child->heightCompressSolidify;
                 const float& childHeightMin = ChooseGreaterDistance(child->validatedHeightMin, compressSolidify);
                 const float& childWidthMin = ChooseGreaterDistance(child->validatedWidthMin, child->accumulatedWidthMin);
@@ -187,18 +194,13 @@ export namespace ufox::geometry::discadelta {
 
         const LinearSegmentCreateInfo& config = ctx.config;
 
-        ctx.validatedMin = std::max(0.0f, config.min);
-        ctx.validatedMax = std::max(ctx.validatedMin, config.max);
-
-        const float resolvedBase = config.base.resolve(ctx.accumulatedBase);
-        ctx.validatedBase = std::clamp(resolvedBase, ctx.validatedMin, ctx.validatedMax);
-
-        ctx.compressRatio = std::max(0.0f, config.compressRatio);
-
+        ctx.validatedMin = ChooseGreaterDistance(0.0f, config.min);
+        ctx.validatedMax = ChooseGreaterDistance(ctx.validatedMin, config.max);
+        ctx.validatedBase = std::clamp(ReadLengthValue(config.base, ctx.accumulatedBase), ctx.validatedMin, ctx.validatedMax);
+        ctx.compressRatio = ChooseGreaterDistance(0.0f, config.flexCompress);
         ctx.compressCapacity = ctx.validatedBase * ctx.compressRatio;
-        ctx.compressSolidify = std::max(0.0f, ctx.validatedBase - ctx.compressCapacity);
-
-        ctx.expandRatio = std::max(0.0f, config.expandRatio);
+        ctx.compressSolidify = ChooseGreaterDistance(0.0f, ctx.validatedBase - ctx.compressCapacity);
+        ctx.expandRatio = ChooseGreaterDistance(0.0f, config.flexExpand);
 
         UpdatePriorityLists(ctx);
 
@@ -213,19 +215,18 @@ export namespace ufox::geometry::discadelta {
 
         const RectSegmentCreateInfo& config = ctx.config;
 
-        ctx.validatedWidthMin = std::max(0.0f, config.widthMin);
-        ctx.validatedWidthMax = std::max(ctx.validatedWidthMin, config.widthMax);
-        ctx.validatedHeightMin = std::max(0.0f, config.heightMin);
-        ctx.validatedHeightMax = std::max(ctx.validatedHeightMin, config.heightMax);
-
-        ctx.validatedWidthBase = std::clamp(config.width.resolve(ctx.accumulatedWidthBase), ctx.validatedWidthMin, ctx.validatedWidthMax);
-        ctx.validatedHeightBase = std::clamp(config.height.resolve(ctx.accumulatedHeightBase), ctx.validatedHeightMin, ctx.validatedHeightMax);
-        ctx.compressRatio = std::max(0.0f,config.flexCompress);
+        ctx.validatedWidthMin = ChooseGreaterDistance(0.0f, config.widthMin);
+        ctx.validatedWidthMax = ChooseGreaterDistance(ctx.validatedWidthMin, config.widthMax);
+        ctx.validatedHeightMin = ChooseGreaterDistance(0.0f, config.heightMin);
+        ctx.validatedHeightMax = ChooseGreaterDistance(ctx.validatedHeightMin, config.heightMax);
+        ctx.validatedWidthBase = std::clamp(ReadLengthValue(config.width, ctx.accumulatedWidthBase), ctx.validatedWidthMin, ctx.validatedWidthMax);
+        ctx.validatedHeightBase = std::clamp(ReadLengthValue(config.height, ctx.accumulatedHeightBase), ctx.validatedHeightMin, ctx.validatedHeightMax);
+        ctx.compressRatio = ChooseGreaterDistance(0.0f,config.flexCompress);
         ctx.widthCompressCapacity = ctx.validatedWidthBase * ctx.compressRatio;
-        ctx.widthCompressSolidify = std::max(0.0f, ctx.validatedWidthBase  - ctx.widthCompressCapacity);
+        ctx.widthCompressSolidify = ChooseGreaterDistance(0.0f, ctx.validatedWidthBase  - ctx.widthCompressCapacity);
         ctx.heightCompressCapacity = ctx.validatedHeightBase * ctx.compressRatio;
-        ctx.heightCompressSolidify = std::max(0.0f, ctx.validatedHeightBase - ctx.heightCompressCapacity);
-        ctx.expandRatio = std::max(0.0f, config.flexExpand);
+        ctx.heightCompressSolidify = ChooseGreaterDistance(0.0f, ctx.validatedHeightBase - ctx.heightCompressCapacity);
+        ctx.expandRatio = ChooseGreaterDistance(0.0f, config.flexExpand);
 
         UpdatePriorityLists(ctx);
 
@@ -302,9 +303,10 @@ export namespace ufox::geometry::discadelta {
         };
     }
 
-    constexpr std::pair<float, bool> MakeSizeMetrics(const float& targetDistance, const LinearSegmentContext& ctx) noexcept {
+    [[nodiscard]] constexpr std::pair<float, bool> MakeSizeMetrics(const float& targetDistance, const LinearSegmentContext& ctx, const bool& round) noexcept {
         const float validatedInputDistance = ChooseGreaterDistance(ctx.accumulatedMin, ctx.validatedMin, targetDistance);
-        const bool isCompressionMode = validatedInputDistance < ctx.accumulatedBase;
+        const float roundedBase = round? std::lroundf(ctx.accumulatedBase) : ctx.accumulatedBase;
+        const bool isCompressionMode = validatedInputDistance < roundedBase;
 
         return std::make_tuple(
             validatedInputDistance,
@@ -312,33 +314,19 @@ export namespace ufox::geometry::discadelta {
         );
     }
 
-    constexpr std::tuple<float, float, bool, bool> MakeSizeMetrics(const float& targetWidth, const float& targetHeight,
-       const RectSegmentContext& ctx) noexcept {
+   [[nodiscard]] constexpr std::tuple<float, float, bool, bool> MakeSizeMetrics(const float& targetWidth, const float& targetHeight, const RectSegmentContext& ctx, const bool& round) noexcept {
         const float validatedWidthInput = ChooseGreaterDistance(ctx.accumulatedWidthMin,ctx.validatedWidthMin, targetWidth );
         const float validatedHeightInput = ChooseGreaterDistance(ctx.accumulatedHeightMin, ctx.validatedHeightMin, targetHeight);
         const bool isRow = ctx.config.direction == FlexDirection::Row;
         const float directionAccumulatedBase = isRow ? ctx.accumulatedWidthBase : ctx.accumulatedHeightBase;
+        const float roundedBase = round? std::lroundf(directionAccumulatedBase) : directionAccumulatedBase;
         const float directionInput =  isRow ? validatedWidthInput : validatedHeightInput;
-        const bool isCompressionMode = directionInput < directionAccumulatedBase;
+        const bool isCompressionMode = directionInput < roundedBase;
 
         return std::make_tuple(validatedWidthInput, validatedHeightInput, isRow, isCompressionMode);
     }
 
 
-    /**
-     * Computes a scaled value based on a given distance, accumulation factor and scaling factor,
-     * ensuring all inputs are positive and valid.
-     *
-     * @param distance A floating-point value representing the input distance to be scaled.
-     *        Must be greater than 0.0f to produce a valid result.
-     * @param accumulateFactor A floating-point value representing the accumulation factor used
-     *        in scaling. Must be greater than 0.0f to avoid division by zero.
-     * @param factor A floating-point scaling factor applied to the result after dividing the
-     *        distance by the accumulateFactor. Must be greater than 0.0f.
-     *
-     * @return The computed scaled value as a floating-point result. If any input parameter
-     *         is less than or equal to 0.0f, it returns 0.0f.
-     */
     [[nodiscard]] constexpr float Scaler(float distance, float accumulateFactor, float factor) noexcept {
         if (distance <= 0.0f || accumulateFactor <= 0.0f || factor <= 0.0f) {
             return 0.0f;
@@ -346,56 +334,66 @@ export namespace ufox::geometry::discadelta {
         return distance <= 0.0f || accumulateFactor <= 0.0f || factor <= 0.0f ? 0.0f : distance / accumulateFactor * factor;
     }
 
-    constexpr std::tuple<float, float, float, std::span<const size_t>>
-    MakeCompressCascadeMetrics(const float& inputDistance, const LinearSegmentContext& ctx) noexcept {
+    [[nodiscard]] constexpr std::tuple<float, float, float, std::span<const size_t>>
+    MakeCompressCascadeMetrics(const float& inputDistance, const LinearSegmentContext& ctx, const bool& round) noexcept {
+        const float accumulatedBase = round? std::lroundf(ctx.accumulatedBase) : ctx.accumulatedBase;
+
         return std::make_tuple(
             inputDistance,
-            ctx.accumulatedBase,
+            accumulatedBase,
             ctx.accumulatedCompressSolidify,
             std::span(ctx.compressCascadePriorities)
         );
     }
 
-    constexpr std::tuple<float,float,float, std::span<const size_t>>
-    MakeCompressCascadeMetrics(const float& widthInput, const float& heightInput, const RectSegmentContext& ctx, const bool& isRow ) noexcept {
+    [[nodiscard]] constexpr std::tuple<float,float,float, std::span<const size_t>>
+    MakeCompressCascadeMetrics(const float& widthInput, const float& heightInput, const RectSegmentContext& ctx, const bool& isRow, const bool& round ) noexcept {
         const float& value = isRow ? widthInput : heightInput;
+        const float& directionAccumulatedBase = isRow ? ctx.accumulatedWidthBase : ctx.accumulatedHeightBase;
+        const float accumulatedBase = round? std::lroundf(directionAccumulatedBase) : directionAccumulatedBase;
 
         return std::make_tuple(
             value,
-            isRow ? ctx.accumulatedWidthBase : ctx.accumulatedHeightBase,
+            accumulatedBase,
             ctx.accumulatedCompressSolidify,
             std::span(ctx.compressCascadePriorities));
     }
 
-    constexpr std::tuple<float, float, float, float, float, float>
-    MakeCompressSizeMetrics(const float& cascadeCompressDistance, const float& cascadeBaseDistance, const float& cascadeCompressSolidify, const LinearSegmentContext& ctx) noexcept {
+    [[nodiscard]] constexpr std::tuple<float, float, float, float, float, float>
+    MakeCompressSizeMetrics(const float& cascadeCompressDistance, const float& cascadeBaseDistance, const float& cascadeCompressSolidify, const LinearSegmentContext& ctx, const bool& round) noexcept {
+        const float childEffectiveBase = ctx.config.base.type == LengthUnitType::Auto ? ctx.accumulatedBase : ctx.validatedBase;
+        const float roundedBase = round? std::lroundf(childEffectiveBase) : childEffectiveBase;
+
         return std::make_tuple(
             cascadeCompressDistance - cascadeCompressSolidify,
             cascadeBaseDistance - cascadeCompressSolidify,
             ctx.compressSolidify,
             ctx.compressCapacity,
-            ctx.config.base.type == LengthUnitType::Auto? ctx.accumulatedBase : ctx.validatedBase,
+            roundedBase,
             ctx.validatedMin
         );
     }
 
-    constexpr std::tuple<const float,const float,const float,const float,const float,const float>
-    MakeCompressSizeMetrics(const float& cascadeCompressDistance, const float&cascadeBaseDistance, const float& cascadeCompressSolidify, const RectSegmentContext& ctx, const bool& isRow) noexcept {
+    [[nodiscard]] constexpr std::tuple<const float,const float,const float,const float,const float,const float>
+    MakeCompressSizeMetrics(const float& cascadeCompressDistance, const float&cascadeBaseDistance, const float& cascadeCompressSolidify, const RectSegmentContext& ctx, const bool& isRow, const bool& round) noexcept {
+        const float childEffectiveBase = isRow ?
+        ctx.config.width.type == LengthUnitType::Auto ? ctx.accumulatedWidthBase : ctx.validatedWidthBase :
+        ctx.config.height.type == LengthUnitType::Auto ? ctx.accumulatedHeightBase : ctx.validatedHeightBase;
+        const float roundedBase = round? std::lroundf(childEffectiveBase) : childEffectiveBase;
 
         return std::make_tuple(
             cascadeCompressDistance - cascadeCompressSolidify,
             cascadeBaseDistance - cascadeCompressSolidify,
             isRow? ctx.widthCompressSolidify: ctx.heightCompressSolidify,
             isRow? ctx.widthCompressCapacity: ctx.heightCompressCapacity,
-            isRow ?
-            ctx.config.width.type == LengthUnitType::Auto ? ctx.accumulatedWidthBase : ctx.validatedWidthBase :
-            ctx.config.height.type == LengthUnitType::Auto ? ctx.accumulatedHeightBase : ctx.validatedHeightBase,
+            roundedBase,
             isRow? ctx.validatedWidthMin : ctx.validatedHeightMin);
     }
 
-    constexpr std::tuple<bool, float, float, std::span<const size_t>>
-    MakeExpandCascadeMetrics(const float& inputDistance, const LinearSegmentContext& ctx) noexcept {
-        const float cascadeExpandDelta = std::max(inputDistance - ctx.accumulatedBase, 0.0f);
+    [[nodiscard]] constexpr std::tuple<bool, float, float, std::span<const size_t>>
+    MakeExpandCascadeMetrics(const float& inputDistance, const LinearSegmentContext& ctx, const bool& round) noexcept {
+        const float accumulatedBase = round? std::lroundf(ctx.accumulatedBase) : ctx.accumulatedBase;
+        const float cascadeExpandDelta = std::max(inputDistance - accumulatedBase, 0.0f);
 
         return std::make_tuple(
             cascadeExpandDelta > 0.0f,
@@ -405,39 +403,41 @@ export namespace ufox::geometry::discadelta {
         );
     }
 
-    constexpr std::tuple<const bool,float,float, std::span<const size_t>>
-    MakeExpandCascadeMetrics(const float& widthInput, const float& heightInput, const RectSegmentContext& ctx, const bool& isRow) {
+    [[nodiscard]] constexpr std::tuple<const bool,float,float, std::span<const size_t>>
+    MakeExpandCascadeMetrics(const float& widthInput, const float& heightInput, const RectSegmentContext& ctx, const bool& isRow, const bool& round) {
         const float& value = isRow ? widthInput : heightInput;
         const float& directionAccumulatedBase = isRow? ctx.accumulatedWidthBase: ctx.accumulatedHeightBase;
-        const float cascadeExpandDelta = std::max(value - directionAccumulatedBase, 0.0f);
+        const float accumulatedBase = round? std::lroundf(directionAccumulatedBase) : directionAccumulatedBase;
+        const float cascadeExpandDelta = std::max(value - accumulatedBase, 0.0f);
 
         return std::make_tuple(cascadeExpandDelta > 0.0f,cascadeExpandDelta, ctx.accumulatedExpandRatio, std::span(ctx.expandCascadePriorities));
     }
 
-    constexpr std::tuple<float, float, float>
-    MakeExpandSizeMetrics(const LinearSegmentContext& ctx) noexcept {
+    [[nodiscard]] constexpr std::tuple<float, float, float>
+    MakeExpandSizeMetrics(const LinearSegmentContext& ctx, const bool& round) noexcept {
         const float childEffectiveBase = ctx.config.base.type == LengthUnitType::Auto ? ctx.accumulatedBase : ctx.validatedBase;
+        const float roundedBase = round? std::lroundf(childEffectiveBase) : childEffectiveBase;
         const float childMax = ctx.validatedMax;
-        const float expandCapacity = std::max(0.0f, childMax - childEffectiveBase);
+        const float expandCapacity = std::max(0.0f, childMax - roundedBase);
         return std::make_tuple(
-            childEffectiveBase,
+            roundedBase,
             ctx.expandRatio,
             expandCapacity
         );
     }
 
-    constexpr std::tuple<const float, const float, const float>
-    MakeExpandSizeMetrics(const RectSegmentContext& ctx, const bool& isRow) {
-
+    [[nodiscard]] constexpr std::tuple<const float, const float, const float>
+    MakeExpandSizeMetrics(const RectSegmentContext& ctx, const bool& isRow, const bool& round) {
         const float& directionBase = isRow ?
         ctx.config.width.type == LengthUnitType::Auto ? ctx.accumulatedWidthBase : ctx.validatedWidthBase :
         ctx.config.height.type == LengthUnitType::Auto ? ctx.accumulatedHeightBase : ctx.validatedHeightBase;
+        const float roundedBase = round? std::lroundf(directionBase) : directionBase;
         const float& directionMax = isRow ? ctx.validatedWidthMax : ctx.validatedHeightMax;
 
-        const float expandCapacity = std::max(0.0f, directionMax - directionBase);
+        const float expandCapacity = std::max(0.0f, directionMax - roundedBase);
 
         return std::make_tuple(
-            directionBase,
+            roundedBase,
             ctx.expandRatio,
             expandCapacity);
     }
@@ -449,74 +449,78 @@ export namespace ufox::geometry::discadelta {
         const float&   crossMin      = isRow ? ctx.validatedHeightMin : ctx.validatedWidthMin;
         const float&   crossMax      = isRow ? ctx.validatedHeightMax : ctx.validatedWidthMax;
 
-        const float oppositeAutoBase = crossLength.type != LengthUnitType::Flat? crossLength.resolve(input)  : crossValidatedBase;
+        const float oppositeAutoBase = crossLength.type != LengthUnitType::Flat? ReadLengthValue(crossLength, input)  : crossValidatedBase;
 
         return std::clamp(oppositeAutoBase, crossMin, crossMax);
     }
 
-    void Compressing(const LinearSegmentContext& ctx, const float& inputDistance) noexcept {
-        auto [cascadeCompressDistance, cascadeBaseDistance, cascadeCompressSolidify, priorityList] = MakeCompressCascadeMetrics(inputDistance, ctx);
+    void Compressing(const LinearSegmentContext& ctx, const float& inputDistance, const bool& round) noexcept {
+        auto [cascadeCompressDistance, cascadeBaseDistance, cascadeCompressSolidify, priorityList] = MakeCompressCascadeMetrics(inputDistance, ctx, round);
 
         for (const auto index : priorityList) {
             auto* childCtx = GetChildSegmentContext<LinearSegmentContext>(ctx,index);
             if (childCtx == nullptr) continue;
             auto [remainDist, remainCap, solidify, capacity, greaterBase, validatedMin] =
-                MakeCompressSizeMetrics(cascadeCompressDistance, cascadeBaseDistance, cascadeCompressSolidify, *childCtx);
+                MakeCompressSizeMetrics(cascadeCompressDistance, cascadeBaseDistance, cascadeCompressSolidify, *childCtx, round);
             const float compressBaseDistance = Scaler(remainDist, remainCap, capacity) + solidify;
-            const float clampedDist = std::max(compressBaseDistance, validatedMin);
+            const float clampedDist = ChooseGreaterDistance(compressBaseDistance, validatedMin);
+            const float roundedDist = round? std::lroundf(clampedDist) : clampedDist;
 
-            Sizing(*childCtx, clampedDist);
+            Sizing(*childCtx, roundedDist, 0.0f, round);
 
-            cascadeCompressDistance -= clampedDist;
+            cascadeCompressDistance -= roundedDist;
             cascadeCompressSolidify -= solidify;
             cascadeBaseDistance -= greaterBase;
         }
     }
 
-    void Compressing(const RectSegmentContext& ctx, const float& mainInput, const float& crossInput, const bool& isRow) noexcept {
-        auto [cascadeCompressDistance, cascadeBaseDistance, cascadeCompressSolidify, priorityList] = MakeCompressCascadeMetrics(mainInput, crossInput, ctx, isRow);
+    void Compressing(const RectSegmentContext& ctx, const float& mainInput, const float& crossInput, const bool& isRow, const bool& round) noexcept {
+        auto [cascadeCompressDistance, cascadeBaseDistance, cascadeCompressSolidify, priorityList] = MakeCompressCascadeMetrics(mainInput, crossInput, ctx, isRow, round);
 
         for (const auto index : priorityList) {
             auto* childCtx = GetChildSegmentContext(ctx,index);
             if (childCtx == nullptr) continue;
             auto [remainDist, remainCap, solidify, capacity, validatedBase, validatedMin] =
-                MakeCompressSizeMetrics(cascadeCompressDistance, cascadeBaseDistance, cascadeCompressSolidify, *childCtx, isRow);
+                MakeCompressSizeMetrics(cascadeCompressDistance, cascadeBaseDistance, cascadeCompressSolidify, *childCtx, isRow, round);
             const float compressBaseDistance = Scaler(remainDist, remainCap, capacity) + solidify;
-            const float clampedDist = std::max(compressBaseDistance, validatedMin);
+            const float clampedDist = ChooseGreaterDistance(compressBaseDistance, validatedMin);
+            const float roundedDist = round? std::lroundf(clampedDist) : clampedDist;
 
             const float oppositeBase = ComputeCrossSize(*childCtx, mainInput, crossInput, isRow);
-            const float& widthDist = isRow ? clampedDist : oppositeBase;
-            const float& heightDist = isRow ? oppositeBase : clampedDist;
+            const float roundedOppositeBase = round? std::lroundf(oppositeBase) : oppositeBase;
+            const float& widthDist = isRow ? roundedDist : roundedOppositeBase;
+            const float& heightDist = isRow ? roundedOppositeBase : roundedDist;
 
-            Sizing(*childCtx, widthDist, heightDist);
+            Sizing(*childCtx, widthDist, heightDist, 0.0f, 0.0f, round);
 
-            cascadeCompressDistance -= clampedDist;
+            cascadeCompressDistance -= roundedDist;
             cascadeCompressSolidify -= solidify;
             cascadeBaseDistance -= validatedBase;
         }
     }
 
-    void Expanding(const LinearSegmentContext& ctx, const float& inputDistance) {
-        auto [processingExpansion,cascadeExpandDelta, cascadeExpandRatio, priorityList] = MakeExpandCascadeMetrics(inputDistance, ctx);
+    void Expanding(const LinearSegmentContext& ctx, const float& inputDistance, const bool& round) {
+        auto [processingExpansion,cascadeExpandDelta, cascadeExpandRatio, priorityList] = MakeExpandCascadeMetrics(inputDistance, ctx, round);
         if (!processingExpansion) return;
 
         for (const auto index : priorityList) {
             auto* childCtx = GetChildSegmentContext(ctx,index);
             if (childCtx == nullptr) continue;
 
-            auto [validateBase, expandRatio, maxDelta] = MakeExpandSizeMetrics(*childCtx);
+            auto [validateBase, expandRatio, maxDelta] = MakeExpandSizeMetrics(*childCtx, round);
             const float expandDelta = Scaler(cascadeExpandDelta, cascadeExpandRatio, expandRatio);
             const float clampedDelta = std::min(expandDelta, maxDelta);
+            const float roundedDelta = round? std::lroundf(clampedDelta) : clampedDelta;
 
-            Sizing(*childCtx, validateBase, clampedDelta );
+            Sizing(*childCtx, validateBase, roundedDelta, round);
 
-            cascadeExpandDelta -= clampedDelta;
+            cascadeExpandDelta -= roundedDelta;
             cascadeExpandRatio -= expandRatio;
         }
     }
 
-    void Expanding(const RectSegmentContext& ctx, const float& mainInput, const float& crossInput, const bool& isRow) {
-        auto [processingExpansion,cascadeExpandDelta, cascadeExpandRatio, priorityList] = MakeExpandCascadeMetrics(mainInput, crossInput, ctx, isRow);
+    void Expanding(const RectSegmentContext& ctx, const float& mainInput, const float& crossInput, const bool& isRow, const bool& round) {
+        auto [processingExpansion,cascadeExpandDelta, cascadeExpandRatio, priorityList] = MakeExpandCascadeMetrics(mainInput, crossInput, ctx, isRow, round);
 
         if (!processingExpansion) return;
 
@@ -524,41 +528,43 @@ export namespace ufox::geometry::discadelta {
             auto* childCtx = GetChildSegmentContext(ctx,index);
             if (childCtx == nullptr) continue;
 
-            auto [validatedBase, expandRatio, maxDelta] = MakeExpandSizeMetrics(*childCtx, isRow);
+            auto [validatedBase, expandRatio, maxDelta] = MakeExpandSizeMetrics(*childCtx, isRow, round);
             const float expandDelta = Scaler(cascadeExpandDelta, cascadeExpandRatio, expandRatio);
             const float clampedDelta = std::min(expandDelta, maxDelta);
+            const float roundedDelta = round? std::lroundf(clampedDelta) : clampedDelta;
 
-            const float& widthDelta = isRow ? clampedDelta : 0;
-            const float& heightDelta = isRow ? 0 : clampedDelta;
+            const float& widthDelta = isRow ? roundedDelta : 0;
+            const float& heightDelta = isRow ? 0 : roundedDelta;
 
             const float oppositeBase = ComputeCrossSize(*childCtx, mainInput, crossInput, isRow);
-            const float& widthDist = isRow ? validatedBase : oppositeBase;
-            const float& heightDist = isRow ? oppositeBase : validatedBase;
+            const float roundedOppositeBase = round? std::lroundf(oppositeBase) : oppositeBase;
+            const float& widthDist = isRow ? validatedBase : roundedOppositeBase;
+            const float& heightDist = isRow ? roundedOppositeBase : validatedBase;
 
-            Sizing(*childCtx, widthDist, heightDist, widthDelta, heightDelta );
+            Sizing(*childCtx, widthDist, heightDist, widthDelta, heightDelta , round);
 
-            cascadeExpandDelta -= clampedDelta;
+            cascadeExpandDelta -= roundedDelta;
             cascadeExpandRatio -= expandRatio;
         }
     }
 
-    void Sizing(LinearSegmentContext& ctx, const float& value, const float& delta) {
-        const auto [validatedInputDistance, processingCompression] = MakeSizeMetrics(value, ctx);
+    void Sizing(LinearSegmentContext& ctx, const float& value, const float& delta, const bool& round) {
+        const auto [validatedInputDistance, processingCompression] = MakeSizeMetrics(value, ctx, round);
 
         ctx.content.base  = validatedInputDistance;
         ctx.content.expandDelta = delta;
         ctx.content.distance = validatedInputDistance + delta;
 
         if (processingCompression) {
-            Compressing(ctx, ctx.content.distance);
+            Compressing(ctx, ctx.content.distance, round);
         }
         else {
-            Expanding(ctx, ctx.content.distance);
+            Expanding(ctx, ctx.content.distance, round);
         }
     }
 
-    void Sizing(RectSegmentContext& ctx, const float& width, const float& height, const float& widthDelta, const float& heightDelta) {
-        const auto [validatedWidthInput, validatedHeightInput, isRow, processingCompression] = MakeSizeMetrics(width, height, ctx);
+    void Sizing(RectSegmentContext& ctx, const float& width, const float& height, const float& widthDelta, const float& heightDelta, const bool& round) {
+        const auto [validatedWidthInput, validatedHeightInput, isRow, processingCompression] = MakeSizeMetrics(width, height, ctx, round);
 
         ctx.content.widthBase  = validatedWidthInput;
         ctx.content.heightBase = validatedHeightInput;
@@ -568,10 +574,10 @@ export namespace ufox::geometry::discadelta {
         ctx.content.height = validatedHeightInput + heightDelta;
 
         if (processingCompression) {
-            Compressing(ctx, ctx.content.width, ctx.content.height, isRow);
+            Compressing(ctx, ctx.content.width, ctx.content.height, isRow, round);
         }
         else {
-            Expanding(ctx, ctx.content.width, ctx.content.height, isRow);
+            Expanding(ctx, ctx.content.width, ctx.content.height, isRow, round);
         }
     }
 
