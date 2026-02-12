@@ -149,6 +149,22 @@ int main() {
         }
     );
 
+    auto panelB1_1 = CreateSegmentContext<RectSegmentContext, RectSegmentCreateInfo>(
+        RectSegmentCreateInfo{
+            .name          = "PanelB1_1",
+            .width         = Length{LengthUnitType::Auto, 100.0f},
+            .widthMin      = 0.0f,
+            .widthMax      = std::numeric_limits<float>::max(),
+            .height        = Length{LengthUnitType::Auto, 50.0f},
+            .heightMin     = 0.0f,
+            .heightMax     = std::numeric_limits<float>::max(),
+            .direction     = FlexDirection::Column,
+            .flexCompress  = 1.0f,
+            .flexExpand    = 1.0f,
+            .order         = 2
+        }
+    );
+
     // ────────────────────────────────────────────────────────────────
     // Build hierarchy (same nesting as your original Rect test)
     // ────────────────────────────────────────────────────────────────
@@ -159,6 +175,8 @@ int main() {
     Link(*panelB.get(), *panelB1.get());
     Link(*panelB.get(), *panelB2.get());
     Link(*panelB.get(), *panelB3.get());
+
+    Link(*panelB1.get(), *panelB1_1.get());
 
     std::this_thread::sleep_for(std::chrono::seconds(2));
 

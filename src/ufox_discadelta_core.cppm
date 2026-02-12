@@ -11,6 +11,7 @@ module;
 #include <ranges>
 #include <format>
 #include <iomanip>
+#include <iostream>
 #include <numeric>
 
 export module ufox_discadelta_core;
@@ -229,6 +230,7 @@ export namespace ufox::geometry::discadelta {
             ctx.accumulatedCompressSolidify += compressSolidify;
             ctx.accumulatedExpandRatio += child->expandRatio;
         }
+
     }
 
     /**
@@ -852,20 +854,20 @@ export namespace ufox::geometry::discadelta {
             expandCapacity);
     }
 
+
     /**
-     * Computes the cross-axis size for a layout element.
+     * Computes the cross size within specified boundaries.
      *
-     * This function calculates the cross-axis size based on the given context and inputs.
-     * It selects dimensions and constraints depending on whether the layout is in a row or column direction
-     * and clamps the computed size within specified limits.
+     * This function calculates the cross size for a given layout context by considering input constraints,
+     * validation ranges, and configuration-specific measurements. It uses conditional logic to differentiate
+     * between row and column orientations, ensuring that the cross size adheres to the provided boundaries.
      *
-     * @param ctx The layout context that contains configuration and validation data.
-     * @param mainInput The input size for the main axis.
-     * @param crossInput The input size for the cross axis.
-     * @param isRow Boolean flag indicating if the layout is in a row direction.
-     *              If true, height-related calculations are used; otherwise, width-related calculations are applied.
-     * @return The computed cross-axis size, clamped within the validated minimum and maximum values.
-     * @throws None. The function does not throw exceptions.
+     * @param ctx The context containing configuration and validation data for segment computations.
+     * @param mainInput The main size input value, relative to the primary (main) dimension.
+     * @param crossInput The cross size input value, relative to the secondary (cross) dimension.
+     * @param isRow A boolean value indicating if the primary axis is a row (true) or a column (false).
+     * @return The computed cross size within defined minimum and maximum limits.
+     * @throws None. This function does not throw exceptions.
      */
     constexpr float ComputeCrossSize(const RectSegmentContext& ctx,const float mainInput,const float crossInput,const bool isRow) noexcept {
         const Length& crossLength   = isRow ? ctx.config.height : ctx.config.width;
@@ -873,10 +875,11 @@ export namespace ufox::geometry::discadelta {
         const float&   crossValidatedBase = isRow ? ctx.validatedHeightBase : ctx.validatedWidthBase;
         const float&   crossMin      = isRow ? ctx.validatedHeightMin : ctx.validatedWidthMin;
         const float&   crossMax      = isRow ? ctx.validatedHeightMax : ctx.validatedWidthMax;
+        const float&   lowestCrossMax = std::min(crossMax, input);
 
         const float oppositeAutoBase = crossLength.type != LengthUnitType::Flat? ReadLengthValue(crossLength, input)  : crossValidatedBase;
 
-        return std::clamp(oppositeAutoBase, crossMin, crossMax);
+        return std::clamp(oppositeAutoBase, crossMin, lowestCrossMax);
     }
 
     /**
