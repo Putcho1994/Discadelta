@@ -875,7 +875,7 @@ export namespace ufox::geometry::discadelta {
         const float&   crossValidatedBase = isRow ? ctx.validatedHeightBase : ctx.validatedWidthBase;
         const float&   crossMin      = isRow ? ctx.validatedHeightMin : ctx.validatedWidthMin;
         const float&   crossMax      = isRow ? ctx.validatedHeightMax : ctx.validatedWidthMax;
-        const float&   lowestCrossMax = std::min(crossMax, input);
+        const float   lowestCrossMax = std::min(crossMax, input);
 
         const float oppositeAutoBase = crossLength.type != LengthUnitType::Flat? ReadLengthValue(crossLength, input)  : crossValidatedBase;
 
