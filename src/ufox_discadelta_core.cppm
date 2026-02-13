@@ -1161,6 +1161,6 @@ export namespace ufox::geometry::discadelta {
         }
     }
 
-    using RectSegmentContextHandler = std::unique_ptr<RectSegmentContext, decltype(&DestroySegmentContext<RectSegment>)>;
-    using LinearSegmentContextHandler = std::unique_ptr<LinearSegmentContext, decltype(&DestroySegmentContext<LinearSegment>)>;
+    using RectSegmentContextHandler = std::unique_ptr<RectSegmentContext, decltype(&DestroySegmentContext<RectSegmentContext>)>;
+    using LinearSegmentContextHandler = std::unique_ptr<LinearSegmentContext, decltype(&DestroySegmentContext<LinearSegmentContext>)>;
 }
