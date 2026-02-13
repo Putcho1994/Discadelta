@@ -1160,4 +1160,7 @@ export namespace ufox::geometry::discadelta {
             currentMainOffset += isRow ? child->content.width : child->content.height;
         }
     }
+
+    using RectSegmentContextHandler = std::unique_ptr<RectSegmentContext, decltype(&DestroySegmentContext<RectSegment>)>;
+    using LinearSegmentContextHandler = std::unique_ptr<LinearSegmentContext, decltype(&DestroySegmentContext<LinearSegment>)>;
 }
