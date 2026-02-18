@@ -37,7 +37,7 @@ int main() {
     auto root = CreateSegmentContext<LinearSegmentContext, LinearSegmentCreateInfo>(
         LinearSegmentCreateInfo{
             .name          = "Root",
-            .base          = Length{LengthUnitType::Flat, 0.0f},
+            .base          = 0.0f,
             .flexCompress  = 1.0f,
             .flexExpand    = 1.0f,
             .min           = 0.0f,
@@ -51,7 +51,7 @@ int main() {
     auto panelA = CreateSegmentContext<LinearSegmentContext, LinearSegmentCreateInfo>(
         LinearSegmentCreateInfo{
             .name         = "PanelA",
-            .base         = Length{LengthUnitType::Flat, 200.0f},
+            .base         = 200.0f,
             .flexCompress = 0.5f,
             .flexExpand   = 1.0f,
             .min          = 100.0f,
@@ -63,7 +63,7 @@ int main() {
     auto panelB = CreateSegmentContext<LinearSegmentContext, LinearSegmentCreateInfo>(
         LinearSegmentCreateInfo{
             .name         = "PanelB",
-            .base         = Length{LengthUnitType::Auto, 0.0f},
+            .base         = 0.0f,
             .flexCompress = 1.0f,
             .flexExpand   = 2.0f,
             .min          = 150.0f,
@@ -75,7 +75,7 @@ int main() {
     auto panelC = CreateSegmentContext<LinearSegmentContext, LinearSegmentCreateInfo>(
         LinearSegmentCreateInfo{
             .name         = "PanelC",
-            .base         = Length{LengthUnitType::Flat, 200.0f},
+            .base         = 200.0f,
             .flexCompress = 0.8f,
             .flexExpand   = 0.5f,
             .min          = 120.0f,
@@ -87,7 +87,7 @@ int main() {
     auto panelB1 = CreateSegmentContext<LinearSegmentContext, LinearSegmentCreateInfo>(
         LinearSegmentCreateInfo{
             .name         = "PanelB1",
-            .base         = Length{LengthUnitType::Flat, 100.0f},
+            .base         = 100.0f,
             .flexCompress = 0.0f,
             .flexExpand   = 1.0f,
             .min          = 80.0f,
@@ -99,7 +99,7 @@ int main() {
     auto panelB2 = CreateSegmentContext<LinearSegmentContext, LinearSegmentCreateInfo>(
         LinearSegmentCreateInfo{
             .name         = "PanelB2",
-            .base         = Length{LengthUnitType::Flat, 100.0f},
+            .base         = 100.0f,
             .flexCompress = 0.0f,
             .flexExpand   = 1.0f,
             .min          = 80.0f,
@@ -111,7 +111,7 @@ int main() {
     auto panelB3 = CreateSegmentContext<LinearSegmentContext, LinearSegmentCreateInfo>(
         LinearSegmentCreateInfo{
             .name         = "PanelB3",
-            .base         = Length{LengthUnitType::Auto, 0.0f},
+            .base         = 0.0f,
             .flexCompress = 1.0f,
             .flexExpand   = 0.5f,
             .min          = 50.0f,

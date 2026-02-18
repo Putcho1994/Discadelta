@@ -22,23 +22,6 @@ export namespace ufox::geometry::discadelta {
         Row,
     };
 
-    enum class LengthUnitType : uint8_t {
-        Auto,
-        Flat,
-    };
-
-    struct Length {
-        LengthUnitType type{LengthUnitType::Flat};
-        float value{0.0f};
-
-        constexpr Length() noexcept = default;
-        constexpr Length(const LengthUnitType t, const float v) noexcept : type(t), value(v) {}
-
-        friend constexpr Length operator""_flat(unsigned long long v) noexcept { return {LengthUnitType::Flat, static_cast<float>(v)}; }
-        friend constexpr Length operator""_flat(long double v) noexcept { return {LengthUnitType::Flat, static_cast<float>(v)}; }
-        friend constexpr Length operator""_auto(unsigned long long) noexcept { return {LengthUnitType::Auto, 0.0f}; }
-    };
-
     struct LinearSegment {
         std::string name{"none"};
         float base{0.0f};
@@ -63,7 +46,7 @@ export namespace ufox::geometry::discadelta {
 
     struct LinearSegmentCreateInfo {
         std::string name{"none"};
-        Length base{};
+        float base{0.0f};
         float flexCompress{0.0f};
         float flexExpand{0.0f};
         float min{};
@@ -73,10 +56,10 @@ export namespace ufox::geometry::discadelta {
 
     struct RectSegmentCreateInfo {
         std::string name{"none"};
-        Length width{LengthUnitType::Auto, 0.0f};
+        float width{0.0f};
         float widthMin{0.0f};
         float widthMax{0.0f};
-        Length height{LengthUnitType::Auto, 0.0f};
+        float height{0.0f};
         float heightMin{0.0f};
         float heightMax{0.0f};
         FlexDirection direction{FlexDirection::Column};
