@@ -66,7 +66,6 @@ export namespace ufox::geometry::discadelta {
         float flexCompress{0.0f};
         float flexExpand{0.0f};
         size_t order{0};
-
     };
 
     struct LinearSegmentContext {

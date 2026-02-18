@@ -36,17 +36,8 @@ Root has `parent = nullptr`
 Leaves have `children.empty()`
 Nesting allows sub-layouts (e.g. root bar → nested submenu)
 
-Visual example:
-```text
-Root (parent = null, children = [PanelA, PanelB])
-├── PanelA (parent = Root, children = [])
-└── PanelB (parent = Root, children = [B1, B2])
-    ├── B1 (parent = PanelB, children = [])
-    └── B2 (parent = PanelB, children = [])
-```
-
 Struct definition:
-```cpp
+```c++
 struct LinearSegment {
         std::string name{"none"};
         float base{0.0f};
@@ -97,7 +88,7 @@ Pre-compute is triggered on structural changes to keep metrics (validated base/m
 
 #### Create (Factory with RAII)
 **CreateSegmentContext** allocates a new node and runs initial pre-compute:
-```cpp
+```c++
 auto CreateSegmentContext<LinearSegmentContext, LinearSegmentCreateInfo>(config, mainInput = 0.0f) noexcept
     -> std::unique_ptr<LinearSegmentContext, decltype(&DestroySegmentContext<LinearSegmentContext>)>
 {
@@ -117,7 +108,7 @@ auto CreateSegmentContext<LinearSegmentContext, LinearSegmentCreateInfo>(config,
 
 #### Link (Attach child to parent)
 **Link** sets a parent-child link and triggers pre-compute on parent:
-```cpp
+```c++
 void Link(LinearSegmentContext& parent, LinearSegmentContext& child) noexcept {
     // Safety checks
     if (&child == &parent) return;
@@ -142,7 +133,7 @@ void Link(LinearSegmentContext& parent, LinearSegmentContext& child) noexcept {
 
 #### Unlink (Detach child from parent)
 **Unlink** removes the link and triggers pre-compute on parent:
-```cpp
+```c++
 void Unlink(LinearSegmentContext& child) noexcept {
     if (child.parent == nullptr) return;
 
@@ -172,7 +163,7 @@ void Unlink(LinearSegmentContext& child) noexcept {
 
 #### Destroy (Cleanup node)
 `DestroySegmentContext` unlinks children/parent and deletes:
-```cpp
+```c++
 constexpr void DestroySegmentContext<LinearSegmentContext>(LinearSegmentContext* ptr) noexcept {
     if (!ptr) return;
 
@@ -218,7 +209,7 @@ constexpr void DestroySegmentContext<LinearSegmentContext>(LinearSegmentContext*
 
 Core purpose: clean, fast, safe access + ordering + math helpers that avoid NaN/negative bugs.
 
-```cpp
+```c++
 [[nodiscard]] constexpr float ChooseGreaterDistance(const float& a, const float& b) noexcept {
         return std::max(a,b);
     }
@@ -235,7 +226,7 @@ Core purpose: clean, fast, safe access + ordering + math helpers that avoid NaN/
         return std::min({a,b,c});
 }
 ```
-```cpp
+```c++
 [[nodiscard]] constexpr std::vector<size_t> GetOrderedIndices(const LinearSegmentContext& ctx) noexcept {
         std::vector<size_t> indices(ctx.children.size());
         std::iota(indices.begin(), indices.end(), size_t{0});
@@ -245,7 +236,7 @@ Core purpose: clean, fast, safe access + ordering + math helpers that avoid NaN/
         return indices;
 }
 ```
-```cpp
+```c++
 [[nodiscard]] constexpr auto GetChildSegmentContext(const LinearSegmentContext& parentCtx, const std::string& name) noexcept ->ContextT* {
         const auto it = parentCtx.childrenIndies.find(name);
         return it == parentCtx.childrenIndies.end()? nullptr : parentCtx.children[it->second];
@@ -268,7 +259,7 @@ When triggered by link/unlink/create/destroy:
 
 This ensures the tree is always pre-computed — O(N) per change, but local (only affected subtree).
 
-```cpp
+```c++
 void UpdateAccumulatedMetrics(LinearSegmentContext& ctx) noexcept {
         ctx.accumulatedBase               = 0.0f;
         ctx.accumulatedMin                = 0.0f;
@@ -289,7 +280,7 @@ void UpdateAccumulatedMetrics(LinearSegmentContext& ctx) noexcept {
         }
     }
 ```
-```cpp
+```c++
     constexpr void UpdatePriorityLists(LinearSegmentContext& ctx) noexcept
     {
         ctx.compressCascadePriorities.clear();
@@ -335,54 +326,7 @@ void UpdateAccumulatedMetrics(LinearSegmentContext& ctx) noexcept {
         }
     }
 ```
-```cpp
-    constexpr void UpdatePriorityLists(LinearSegmentContext& ctx) noexcept
-    {
-        ctx.compressCascadePriorities.clear();
-        ctx.expandCascadePriorities.clear();
-
-        if (ctx.children.empty()) {
-            return;
-        }
-
-        ctx.compressCascadePriorities.reserve(ctx.children.size());
-        ctx.expandCascadePriorities.reserve(ctx.children.size());
-
-        std::vector<std::pair<float, size_t>> compressPriorities;
-        std::vector<std::pair<float, size_t>> expandPriorities;
-
-        compressPriorities.reserve(ctx.children.size());
-        expandPriorities.reserve(ctx.children.size());
-
-        for (size_t i = 0; i < ctx.children.size(); ++i){
-            const auto& child = ctx.children[i];
-
-            float compressRoom = ChooseGreaterDistance(0.0f,child->validatedBase - child->validatedMin);
-            float expandRoom   = ChooseGreaterDistance(0.0f,child->validatedMax  - child->validatedBase);
-
-            compressPriorities.emplace_back(compressRoom, i);
-            expandPriorities.emplace_back(expandRoom,   i);
-        }
-
-        std::ranges::sort(compressPriorities, [](const auto& a, const auto& b) {
-            return a.first < b.first;
-        });
-
-        for (const auto &val: compressPriorities | std::views::values) {
-            ctx.compressCascadePriorities.push_back(val);
-        }
-
-        std::ranges::sort(expandPriorities, [](const auto& a, const auto& b) {
-            return a.first > b.first;
-        });
-
-        for (const auto &val: expandPriorities | std::views::values) {
-            ctx.expandCascadePriorities.push_back(val);
-        }
-    }
-```
-
-```cpp
+```c++
 void UpdateContextMetrics(LinearSegmentContext& ctx) noexcept{
         UpdateAccumulatedMetrics(ctx);
 
@@ -425,7 +369,7 @@ Classic flex-grow / flex-shrink math
 Ensures exact fit, no over- or under-shoot
 
 
-```cpp
+```c++
 [[nodiscard]] constexpr float Scaler(float distance, float accumulateFactor, float factor) noexcept {
         if (distance <= 0.0f || accumulateFactor <= 0.0f || factor <= 0.0f) {
             return 0.0f;
@@ -434,7 +378,7 @@ Ensures exact fit, no over- or under-shoot
     }
 ```
 
-```cpp
+```c++
 [[nodiscard]] constexpr std::pair<float, bool> MakeSizeMetrics(const float& targetDistance, const LinearSegmentContext& ctx, const bool& round) noexcept {
         const float validatedInputDistance = ChooseGreaterDistance(ctx.accumulatedMin, ctx.validatedMin, targetDistance);
         const float roundedBase = round? std::lroundf(ctx.accumulatedBase) : ctx.accumulatedBase;
@@ -446,7 +390,7 @@ Ensures exact fit, no over- or under-shoot
         );
     }
 ```
-```cpp
+```c++
 [[nodiscard]] constexpr std::tuple<float, float, float, std::span<const size_t>>
     MakeCompressCascadeMetrics(const float& inputDistance, const LinearSegmentContext& ctx, const bool& round) noexcept {
         const float accumulatedBase = round? std::lroundf(ctx.accumulatedBase) : ctx.accumulatedBase;
@@ -460,7 +404,7 @@ Ensures exact fit, no over- or under-shoot
     }
 ```
 
-```cpp
+```c++
 [[nodiscard]] constexpr std::tuple<float, float, float, float, float, float>
     MakeCompressSizeMetrics(const float& cascadeCompressDistance, const float& cascadeBaseDistance, const float& cascadeCompressSolidify, const LinearSegmentContext& ctx, const bool& round) noexcept {
         const float childEffectiveBase = ctx.validatedBase;
@@ -477,7 +421,7 @@ Ensures exact fit, no over- or under-shoot
     }
 ```
 
-```cpp
+```c++
 [[nodiscard]] constexpr std::tuple<bool, float, float, std::span<const size_t>>
     MakeExpandCascadeMetrics(const float& inputDistance, const LinearSegmentContext& ctx, const bool& round) noexcept {
         const float accumulatedBase = round? std::lroundf(ctx.accumulatedBase) : ctx.accumulatedBase;
@@ -492,7 +436,7 @@ Ensures exact fit, no over- or under-shoot
     }
 ```
 
-```cpp
+```c++
 [[nodiscard]] constexpr std::tuple<float, float, float>
     MakeExpandSizeMetrics(const LinearSegmentContext& ctx, const bool& round) noexcept {
         const float childEffectiveBase = ctx.validatedBase;
@@ -507,7 +451,7 @@ Ensures exact fit, no over- or under-shoot
     }
 ```
 
-```cpp
+```c++
 void Compressing(const LinearSegmentContext& ctx, const float& inputDistance, const bool& round) noexcept {
         auto [cascadeCompressDistance, cascadeBaseDistance, cascadeCompressSolidify, priorityList] = MakeCompressCascadeMetrics(inputDistance, ctx, round);
 
@@ -529,7 +473,7 @@ void Compressing(const LinearSegmentContext& ctx, const float& inputDistance, co
     }
 ```
 
-```cpp
+```c++
 void Expanding(const LinearSegmentContext& ctx, const float& inputDistance, const bool& round) {
         auto [processingExpansion,cascadeExpandDelta, cascadeExpandRatio, priorityList] = MakeExpandCascadeMetrics(inputDistance, ctx, round);
         if (!processingExpansion) return;
@@ -551,7 +495,7 @@ void Expanding(const LinearSegmentContext& ctx, const float& inputDistance, cons
     }
 ```
 
-```cpp
+```c++
 void Sizing(LinearSegmentContext& ctx, const float& value, const float& delta, const bool& round) {
         const auto [validatedInputDistance, processingCompression] = MakeSizeMetrics(value, ctx, round);
 
@@ -581,7 +525,7 @@ void Sizing(LinearSegmentContext& ctx, const float& value, const float& delta, c
 * No metric changes — only writes the final screen position
 
 
-```cpp
+```c++
 constexpr void Placing(LinearSegmentContext& ctx, const float& parentOffset = 0.0f) noexcept {
         ctx.content.offset = parentOffset;
         if (ctx.children.empty()) return;

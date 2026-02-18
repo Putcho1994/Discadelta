@@ -446,9 +446,9 @@ export namespace ufox::geometry::discadelta {
         const float& crossValidatedBase = isRow ? ctx.validatedHeightBase : ctx.validatedWidthBase;
         const float& crossMin = isRow ? ctx.validatedHeightMin : ctx.validatedWidthMin;
         const float& crossMax = isRow ? ctx.validatedHeightMax : ctx.validatedWidthMax;
-        const float lowestCrossMax = ChooseLowestDistance(crossMax, input, crossValidatedBase);
+        const float lowestCrossDistance = ChooseLowestDistance(crossMax, input, crossValidatedBase);
 
-        return ChooseGreaterDistance(0.0f, lowestCrossMax, crossMin);
+        return ChooseGreaterDistance(0.0f, lowestCrossDistance, crossMin);
     }
 
 
