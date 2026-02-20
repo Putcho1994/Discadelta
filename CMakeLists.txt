@@ -11,10 +11,12 @@ add_subdirectory(src)
 
 find_package(Vulkan-Headers QUIET)
 
+option(HAS_VULKAN "Vulkan support" OFF)
+
 if(Vulkan-Headers_FOUND)
     message(STATUS "Vulkan Headers found")
     target_link_libraries(src PUBLIC Vulkan-Headers)
-    target_compile_definitions(src PUBLIC HAS_VULKAN=1)
+    set(HAS_VULKAN ON)
 else()
     find_package(Vulkan QUIET)
 
@@ -23,7 +25,7 @@ else()
         message(STATUS "  include: ${Vulkan_INCLUDE_DIR}")
         message(STATUS "  library: ${Vulkan_LIBRARY}")
         target_link_libraries(src PUBLIC Vulkan::Vulkan)
-        target_compile_definitions(src PUBLIC HAS_VULKAN=1)
+        set(HAS_VULKAN ON)
     else()
     message(WARNING "
                   Vulkan SDK NOT FOUND
@@ -35,10 +37,13 @@ else()
   • Set VULKAN_SDK environment variable
   • Re-run cmake
 ")
-    target_compile_definitions(src PUBLIC HAS_VULKAN=0)
+    SET(HAS_VULKAN OFF)
     endif ()
-target_compile_definitions(src PUBLIC HAS_VULKAN=0)
+endif()
 
+if(HAS_VULKAN)
+    target_compile_definitions(src PRIVATE HAS_VULKAN=1)
+    message(STATUS "Enable SDL3 support")
 endif()
 
 # Option to build samples (default ON)
