@@ -14,21 +14,20 @@ find_package(Vulkan-Headers QUIET)
 option(HAS_VULKAN "Vulkan support" OFF)
 
 if(Vulkan-Headers_FOUND)
-    message(STATUS "Vulkan Headers found")
-    target_link_libraries(src PUBLIC Vulkan-Headers)
+    message(STATUS "Discadelta: Vulkan Headers - found")
     set(HAS_VULKAN ON)
 else()
     find_package(Vulkan QUIET)
 
     if(Vulkan_FOUND)
-        message(STATUS "Vulkan found → version ${Vulkan_VERSION}")
-        message(STATUS "  include: ${Vulkan_INCLUDE_DIR}")
-        message(STATUS "  library: ${Vulkan_LIBRARY}")
+        message(STATUS "Discadelta: Vulkan - found → version ${Vulkan_VERSION}")
+        message(STATUS "Discadelta: Vulkan - include: ${Vulkan_INCLUDE_DIR}")
+        message(STATUS "Discadelta: Vulkan - library: ${Vulkan_LIBRARY}")
         target_link_libraries(src PUBLIC Vulkan::Vulkan)
         set(HAS_VULKAN ON)
     else()
     message(WARNING "
-                  Vulkan SDK NOT FOUND
+           Discadelta: Vulkan SDK NOT FOUND
  → No Vulkan support will be built
  → GUI / rendering features will be disabled or stubbed
 
@@ -43,7 +42,7 @@ endif()
 
 if(HAS_VULKAN)
     target_compile_definitions(src PRIVATE HAS_VULKAN=1)
-    message(STATUS "Enable SDL3 support")
+    message(STATUS "Discadelta: Enabled Vulkan features")
 endif()
 
 # Option to build samples (default ON)
