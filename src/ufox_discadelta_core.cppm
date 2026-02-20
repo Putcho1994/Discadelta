@@ -12,6 +12,9 @@ module;
 #include <format>
 #include <iomanip>
 #include <numeric>
+#ifdef HAS_VULKAN
+#include <vulkan/vulkan_raii.hpp>
+#endif
 
 export module ufox_discadelta_core;
 
