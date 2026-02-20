@@ -248,6 +248,7 @@ export namespace ufox::geometry::discadelta {
         }
 
         parent.children.erase(it);
+        parent.branchCount = std::max(size_t{1}, parent.branchCount - child.branchCount);
         child.parent = nullptr;
 
         if (!parent.children.empty()) {
@@ -265,6 +266,7 @@ export namespace ufox::geometry::discadelta {
 
         child.parent = &parent;
         parent.children.push_back(&child);
+        parent.branchCount += child.branchCount;
 
         UpdateContextMetrics(parent);
     }
@@ -299,6 +301,7 @@ export namespace ufox::geometry::discadelta {
     requires ((std::same_as<ContextT, LinearSegmentContext> && std::same_as<ConfigT, LinearSegmentCreateInfo>) ||(std::same_as<ContextT, RectSegmentContext>   && std::same_as<ConfigT, RectSegmentCreateInfo>))
     constexpr auto CreateSegmentContext(const ConfigT& config) noexcept -> std::unique_ptr<ContextT, decltype(&DestroySegmentContext<ContextT>)> {
         auto* ctx = new ContextT{config};
+        ctx->branchCount = 1;
         UpdateContextMetrics(*ctx);
 
         return std::unique_ptr<ContextT, decltype(&DestroySegmentContext<ContextT>)>{ctx,&DestroySegmentContext<ContextT>
@@ -624,4 +627,14 @@ export namespace ufox::geometry::discadelta {
 
     using RectSegmentContextHandler = std::unique_ptr<RectSegmentContext, decltype(&DestroySegmentContext<RectSegmentContext>)>;
     using LinearSegmentContextHandler = std::unique_ptr<LinearSegmentContext, decltype(&DestroySegmentContext<LinearSegmentContext>)>;
+
+    void UpdateSegments(LinearSegmentContext& rootCtx, const float inputDistance, const bool round) {
+        Sizing(rootCtx, inputDistance, 0.0f, round);
+        Placing(rootCtx);
+    }
+
+    void UpdateSegments(RectSegmentContext& rootCtx, const float mainInput, const float crossInput, const bool round ) {
+        Sizing(rootCtx, mainInput, crossInput, 0.0f,0.0f, round);
+        Placing(rootCtx);
+    }
 }

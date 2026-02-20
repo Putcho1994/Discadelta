@@ -99,6 +99,8 @@ int main() {
     std::cout << "=== " << title << " (size 800x600, rounded) ===" << std::endl;
     PrintTreeDebugWithOffset(*root.get());
 
+    std::cout << "branchCount: " << root->branchCount;
+
     std::this_thread::sleep_for(std::chrono::seconds(2));
 
     return 0;

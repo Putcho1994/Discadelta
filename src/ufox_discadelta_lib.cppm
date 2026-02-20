@@ -89,6 +89,7 @@ export namespace ufox::geometry::discadelta {
         float expandRatio = 0.0f;
         float compressCapacity = 0.0f;
         float compressSolidify = 0.0f;
+        size_t branchCount = 1;
 
         explicit LinearSegmentContext(LinearSegmentCreateInfo config) : config(std::move(config)) {}
     };
@@ -120,6 +121,7 @@ export namespace ufox::geometry::discadelta {
         float heightCompressSolidify = 0.0f;
         float expandRatio = 0.0f;
         size_t order{0};
+        size_t branchCount = 1;
 
         explicit RectSegmentContext(RectSegmentCreateInfo  config) : config(std::move(config)) {}
     };
