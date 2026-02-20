@@ -8,17 +8,14 @@ if(Vulkan_FOUND)
     message(STATUS "  library: ${Vulkan_LIBRARY}")
 else()
     message(WARNING "
-┌──────────────────────────────────────────────────────────────┐
-│                   Vulkan SDK NOT FOUND                       │
-│                                                              │
-│  → No Vulkan support will be built                           │
-│  → GUI / rendering features will be disabled or stubbed      │
-│                                                              │
-│  To enable Vulkan:                                           │
-│    • Install Vulkan SDK → https://vulkan.lunarg.com          │
-│    • Set VULKAN_SDK environment variable                     │
-│    • Re-run cmake                                            │
-└──────────────────────────────────────────────────────────────┘
+                  Vulkan SDK NOT FOUND
+ → No Vulkan support will be built
+ → GUI / rendering features will be disabled or stubbed
+
+ To enable Vulkan:
+  • Install Vulkan SDK → https://vulkan.lunarg.com
+  • Set VULKAN_SDK environment variable
+  • Re-run cmake
 ")
     # You can define a variable / option here
     set(HAS_VULKAN_SUPPORT OFF CACHE INTERNAL "Vulkan support status")
