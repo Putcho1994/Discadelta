@@ -49,7 +49,7 @@ endif()
 option(DISCADELTA_SAMPLES "Build sample executables" ON)
 
 if(DISCADELTA_SAMPLES)
-    message(STATUS "Building Discadelta samples")
+    message(STATUS "Discadelta: Building samples")
     add_executable(ch01_basic       samples/chapter_01_sample.cpp)
     add_executable(ch02_constraints samples/chapter_02_sample.cpp)
     add_executable(ch03_optimized   samples/chapter_03_sample.cpp)

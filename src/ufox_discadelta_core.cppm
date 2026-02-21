@@ -25,6 +25,54 @@ export namespace ufox::geometry::discadelta {
     void Sizing(LinearSegmentContext& ctx, const float& value, const float& delta, const bool& round);
     void Sizing(RectSegmentContext& ctx, const float& width, const float& height, const float& widthDelta, const float& heightDelta, const bool& round);
 
+    [[nodiscard]] constexpr size_t HashCombine(const size_t seed, const size_t value) noexcept {
+        return seed ^ value + 0x9e3779b97f4a7c15ull + (seed << 6) + (seed >> 2);
+    }
+
+    constexpr void UpdateSizingMetricsHash(LinearSegmentContext& ctx) noexcept {
+        size_t newHash = 0;
+        auto combine = [&newHash](const float f) noexcept {
+            newHash = HashCombine(newHash, std::bit_cast<uint32_t>(f));
+        };
+
+        combine(ctx.validatedBase);
+        combine(ctx.validatedMin);
+        combine(ctx.validatedMax);
+        combine(ctx.compressRatio);
+        combine(ctx.expandRatio);
+        combine(ctx.compressCapacity);
+        combine(ctx.compressSolidify);
+
+        ctx.hash = newHash;
+    }
+
+    constexpr void UpdateSizingMetricsHash(RectSegmentContext& ctx) noexcept {
+        size_t newHash = 0;
+        auto combine = [&newHash](const float f) noexcept {
+            newHash = HashCombine(newHash, std::bit_cast<uint32_t>(f));
+        };
+
+        // Width
+        combine(ctx.validatedWidthBase);
+        combine(ctx.validatedWidthMin);
+        combine(ctx.validatedWidthMax);
+        combine(ctx.widthCompressCapacity);
+        combine(ctx.widthCompressSolidify);
+
+        // Height
+        combine(ctx.validatedHeightBase);
+        combine(ctx.validatedHeightMin);
+        combine(ctx.validatedHeightMax);
+        combine(ctx.heightCompressCapacity);
+        combine(ctx.heightCompressSolidify);
+
+        // Shared
+        combine(ctx.compressRatio);
+        combine(ctx.expandRatio);
+
+        ctx.hash = newHash;
+    }
+
     [[nodiscard]] constexpr float ChooseGreaterDistance(const float& a, const float& b) noexcept {
         return std::max(a,b);
     }
@@ -63,6 +111,11 @@ export namespace ufox::geometry::discadelta {
     requires std::same_as<ContextT, LinearSegmentContext> || std::same_as<ContextT, RectSegmentContext>
     [[nodiscard]] constexpr auto GetChildSegmentContext(const ContextT& parentCtx, const size_t index) noexcept ->ContextT*{
         return index < parentCtx.children.size() ? parentCtx.children[index] : nullptr;
+    }
+    template<typename ContextT>
+    requires std::same_as<ContextT, LinearSegmentContext> || std::same_as<ContextT, RectSegmentContext>
+    [[nodiscard]] bool ValidateContextParent(const ContextT& ctx) {
+        return ctx.parent != nullptr && ctx.parent != &ctx;
     }
 
     void UpdateAccumulatedMetrics(LinearSegmentContext& ctx) noexcept {
@@ -189,10 +242,7 @@ export namespace ufox::geometry::discadelta {
         }
     }
 
-
-    void UpdateContextMetrics(LinearSegmentContext& ctx) noexcept{
-        UpdateAccumulatedMetrics(ctx);
-
+    void ValidateContextMetrics(LinearSegmentContext& ctx) noexcept {
         const LinearSegmentCreateInfo& config = ctx.config;
 
         ctx.validatedMin = ChooseGreaterDistance(0.0f, config.min, ctx.accumulatedMin);
@@ -202,18 +252,9 @@ export namespace ufox::geometry::discadelta {
         ctx.compressCapacity = ctx.validatedBase * ctx.compressRatio;
         ctx.compressSolidify = ChooseGreaterDistance(0.0f, ctx.validatedBase - ctx.compressCapacity);
         ctx.expandRatio = ChooseGreaterDistance(0.0f, config.flexExpand);
-
-        UpdatePriorityLists(ctx);
-
-        if (ctx.parent != nullptr && ctx.parent != &ctx){
-            UpdateContextMetrics(*ctx.parent);
-        }
     }
 
-
-    void UpdateContextMetrics(RectSegmentContext& ctx) noexcept {
-        UpdateAccumulatedMetrics(ctx);
-
+    void ValidateContextMetrics(RectSegmentContext& ctx) noexcept {
         const RectSegmentCreateInfo& config = ctx.config;
 
         ctx.validatedWidthMin = ChooseGreaterDistance(0.0f, config.widthMin, ctx.accumulatedWidthMin);
@@ -228,12 +269,21 @@ export namespace ufox::geometry::discadelta {
         ctx.heightCompressCapacity = ctx.validatedHeightBase * ctx.compressRatio;
         ctx.heightCompressSolidify = ChooseGreaterDistance(0.0f, ctx.validatedHeightBase - ctx.heightCompressCapacity);
         ctx.expandRatio = ChooseGreaterDistance(0.0f, config.flexExpand);
+    }
+
+
+    template<typename ContextT>
+    requires std::same_as<ContextT, LinearSegmentContext> || std::same_as<ContextT, RectSegmentContext>
+    void UpdateContextMetrics(ContextT& ctx) noexcept{
+        UpdateAccumulatedMetrics(ctx);
+
+        ValidateContextMetrics(ctx);
 
         UpdatePriorityLists(ctx);
 
-        if (ctx.parent != nullptr && ctx.parent != &ctx) {
-            UpdateContextMetrics(*ctx.parent);
-        }
+        UpdateSizingMetricsHash(ctx);
+
+        if (ValidateContextParent(ctx)) UpdateContextMetrics(*ctx.parent);
     }
 
 
@@ -640,4 +690,11 @@ export namespace ufox::geometry::discadelta {
         Sizing(rootCtx, mainInput, crossInput, 0.0f,0.0f, round);
         Placing(rootCtx);
     }
+
+#ifdef HAS_VULKAN
+    constexpr vk::Rect2D MakeVKRect2D(const RectSegmentContext& ctx) noexcept {
+        return vk::Rect2D{{static_cast<int32_t>(ctx.content.x), static_cast<int32_t>(ctx.content.y)}, {static_cast<uint32_t>(ctx.content.width), static_cast<uint32_t>(ctx.content.height)}};
+    }
+#endif
+
 }

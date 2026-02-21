@@ -8,15 +8,17 @@ module;
 #include <utility>
 #include <vector>
 #include <algorithm>
-#include <cmath>
-#include <limits>
-#include <numeric>
-#include <ranges>
 #include <unordered_map>
+#ifdef HAS_VULKAN
+#include <vulkan/vulkan_raii.hpp>
+#endif
 
 export module ufox_discadelta_lib;
 
 export namespace ufox::geometry::discadelta {
+
+    using Hash = size_t;
+
     enum class FlexDirection {
         Column,
         Row,
@@ -76,7 +78,6 @@ export namespace ufox::geometry::discadelta {
         std::unordered_map<std::string, size_t> childrenIndies;
         std::vector<size_t> compressCascadePriorities;
         std::vector<size_t> expandCascadePriorities;
-        size_t order{0};
 
         float validatedBase = 0.0f;
         float validatedMin = 0.0f;
@@ -89,7 +90,9 @@ export namespace ufox::geometry::discadelta {
         float expandRatio = 0.0f;
         float compressCapacity = 0.0f;
         float compressSolidify = 0.0f;
+        size_t order{0};
         size_t branchCount = 1;
+        Hash hash{0};
 
         explicit LinearSegmentContext(LinearSegmentCreateInfo config) : config(std::move(config)) {}
     };
@@ -122,7 +125,23 @@ export namespace ufox::geometry::discadelta {
         float expandRatio = 0.0f;
         size_t order{0};
         size_t branchCount = 1;
+        Hash hash{0};
 
         explicit RectSegmentContext(RectSegmentCreateInfo  config) : config(std::move(config)) {}
+    };
+
+    struct SizingBatcherTarget {
+        Hash     hash       { 0 };
+        float          mainInput  { 0.0f };
+        float          crossInput { 0.0f };
+    };
+
+    struct SizingBatcherContent {
+        Hash                        batchHash { 0 };
+        std::vector<SizingBatcherTarget>  targets;
+    };
+
+    struct SizingBatcher {
+        std::vector<SizingBatcherContent>  contents;
     };
 }
