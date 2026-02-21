@@ -242,7 +242,7 @@ export namespace ufox::geometry::discadelta {
         }
     }
 
-    void ValidateContextMetrics(LinearSegmentContext& ctx) noexcept {
+   constexpr void ValidateContextMetrics(LinearSegmentContext& ctx) noexcept {
         const LinearSegmentCreateInfo& config = ctx.config;
 
         ctx.validatedMin = ChooseGreaterDistance(0.0f, config.min, ctx.accumulatedMin);
@@ -254,7 +254,7 @@ export namespace ufox::geometry::discadelta {
         ctx.expandRatio = ChooseGreaterDistance(0.0f, config.flexExpand);
     }
 
-    void ValidateContextMetrics(RectSegmentContext& ctx) noexcept {
+   constexpr void ValidateContextMetrics(RectSegmentContext& ctx) noexcept {
         const RectSegmentCreateInfo& config = ctx.config;
 
         ctx.validatedWidthMin = ChooseGreaterDistance(0.0f, config.widthMin, ctx.accumulatedWidthMin);
