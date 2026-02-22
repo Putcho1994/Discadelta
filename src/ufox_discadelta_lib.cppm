@@ -130,18 +130,4 @@ export namespace ufox::geometry::discadelta {
         explicit RectSegmentContext(RectSegmentCreateInfo  config) : config(std::move(config)) {}
     };
 
-    struct SizingBatcherTarget {
-        Hash     hash       { 0 };
-        float          mainInput  { 0.0f };
-        float          crossInput { 0.0f };
-    };
-
-    struct SizingBatcherContent {
-        Hash                        batchHash { 0 };
-        std::vector<SizingBatcherTarget>  targets;
-    };
-
-    struct SizingBatcher {
-        std::vector<SizingBatcherContent>  contents;
-    };
 }
