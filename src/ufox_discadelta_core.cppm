@@ -399,8 +399,6 @@ export namespace ufox::geometry::discadelta {
 
         UpdatePriorityLists(ctx);
 
-        UpdateSizingMetricsHash(ctx);
-
         if (ValidateContextParent(ctx)) UpdateContextMetrics(*ctx.parent);
     }
 
