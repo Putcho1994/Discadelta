@@ -56,5 +56,5 @@ jobs:
           ./build/ch01_basic
           ./build/ch02_constraints
           ./build/ch03_optimized
-          ./build/ch04_placing
-          ./build/ch05_nesting
+          ./build/linear_sample
+          ./build/rect_sample
